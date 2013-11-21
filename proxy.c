@@ -28,7 +28,9 @@ int main()
 	printf("\n\tNovember, 2013"); 
 	printf("\n================================================="); 
 
-	// TODO: Correct way to initialize our socket? 
+	/************************************************************/ 
+	/* Create a socket for handling new connection requests 	*/ 
+	/************************************************************/ 
 	if((sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0)
     	DieWithSystemMessage("socket() failed"); 
 
@@ -37,15 +39,9 @@ int main()
     /****************************************/ 
     struct sockaddr_in addr; 
     memset(&addr, 0, sizeof(addr)); 
-    addr.sin_family = AF_INET;                                      // IPV4 address family 
-    addr.sin_addr.s_addr = htonl(INADDR_ANY);         				// any incoming interface 
-    addr.sin_port = htons(PORT); 									// is htons() correct here? 
-
-    if(DEBUG)
-    {
-    	printf("\nPORT: %d", PORT); 
-    	printf("\nhtons(PORT): %d", htons(PORT)); 
-    }
+    addr.sin_family = AF_INET;                           	// IPV4 address family 
+    addr.sin_addr.s_addr = htonl(INADDR_ANY);         		// any incoming interface 
+    addr.sin_port = htons(PORT); 							// Port to be bound to 
 
     /************************************/ 
     /* Bind to the local address 		*/ 
@@ -75,8 +71,7 @@ int main()
 
 		struct sockaddr_in clntAddr; 		// client address
 
-		// Set length of client address structure
-		socklen_t clntAddrLen = sizeof(clntAddr);
+		socklen_t clntAddrLen = sizeof(clntAddr);		// Set length of client address structure
 
 		/************************************************************/ 
 		/* Accept connections from web clients on port 80 		*/ 
@@ -92,7 +87,18 @@ int main()
 		char clntName[INET_ADDRSTRLEN];                 // String for client address
         if(inet_ntop(AF_INET, &clntAddr.sin_addr.s_addr, clntName, sizeof(clntName)) != 0)
         {
-        	printf("\nHandling client %s/%d\n", clntName, ntohs(clntAddr.sin_port));
+        	printf("\nHandling client on socket #%d: \n\tIP address: %s\n\tPort #: %d\n", clntSock, clntName, clntAddr.sin_port);
+
+        	/* Receive some data from the client */ 
+        	numBytes = recv(clntSock, messageBuffer, MAX_MESSAGE_SIZE, 0);
+
+        	if(numBytes < 0)
+            	DieWithSystemMessage("recv() failed\n"); 
+            else if(numBytes == 0)
+                    DieWithUserMessage("recv()", "connection closed prematurely\n"); 
+
+            if(DEBUG)
+           		printf("\nReceived %zu bytes from the client: %s", numBytes, messageBuffer); 
         }
 
 		/****************************************************************/ 
