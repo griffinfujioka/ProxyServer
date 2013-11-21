@@ -69,6 +69,8 @@ int main()
 		if(DEBUG)
 			printf("\nServer ready for incoming connections..."); 
 
+		memset(&messageBuffer, 0, MAX_MESSAGE_SIZE); 			// zero the message buffer 
+
 		struct sockaddr_in clntAddr; 		// client address
 
 		socklen_t clntAddrLen = sizeof(clntAddr);		// Set length of client address structure
@@ -85,6 +87,11 @@ int main()
 			printf("\nSuccessfully accepted connection. Client is using socket %d", clntSock); 
 
 		char clntName[INET_ADDRSTRLEN];                 // String for client address
+		char httpOperation[5]; 			// I.e., GET, POST, HEAD
+		char pathToFile[256]; 			// I.e., http://www.cnn.com
+		char httpVersion[24]; 			// I.e., HTTP/1.1
+		char host[256]; 				// I.e., www.cnn.com 
+
         if(inet_ntop(AF_INET, &clntAddr.sin_addr.s_addr, clntName, sizeof(clntName)) != 0)
         {
         	printf("\nHandling client on socket #%d: \n\tIP address: %s\n\tPort #: %d\n", clntSock, clntName, clntAddr.sin_port);
@@ -97,8 +104,100 @@ int main()
             else if(numBytes == 0)
                     DieWithUserMessage("recv()", "connection closed prematurely\n"); 
 
+            int tokenizer = 0; 			// used to tokenize the HTTP request headers into OP /path/to/file HTTP/1.x 
+            int i = 0; 					// used for filling up respective buffers with information from the HTTP request headers
+
+            /********************************************************/ 
+        	/* Parse messageBuffer to attain the HTTP operation 	*/ 
+            /********************************************************/  
+            while(messageBuffer[tokenizer] != ' ')
+            {
+            	httpOperation[i] = messageBuffer[tokenizer]; 
+            	tokenizer++; 
+            	i++; 
+            }
+
+            httpOperation[i] = '\0'; 
+            tokenizer++; 
+            i=0; 
+
+            /********************************************************/ 
+            /* Parse messageBuffer to attain the path to the file 	*/ 
+            /********************************************************/ 
+            while(messageBuffer[tokenizer] != ' ')
+            { 
+            	pathToFile[i] = messageBuffer[tokenizer]; 
+            	tokenizer++; 
+            	i++; 
+            }
+
+            pathToFile[i] = '\0'; 
+            tokenizer++; 
+            i=0; 
+
+            /********************************************************/ 
+            /* Parse messageBuffer to attain the HTTP version 		*/ 
+            /********************************************************/ 
+            while(messageBuffer[tokenizer] != '\r')
+            { 
+            	httpVersion[i] = messageBuffer[tokenizer]; 
+            	tokenizer++; 
+            	i++; 
+            }
+
+            httpVersion[i] = '\0'; 
+            tokenizer++; 
+            i=0; 
+
+            /********************************************************/ 
+            /* Parse messageBuffer to attain host name 				*/ 
+            /********************************************************/ 
+            while(messageBuffer[tokenizer] != '\r')
+            {
+            	host[i] = messageBuffer[tokenizer]; 
+            	tokenizer++; 
+            	i++; 
+            }
+
+            host[i] = '\0'; 
+            tokenizer++; 
+            i=0; 
+
             if(DEBUG)
-           		printf("\nReceived %zu bytes from the client: %s", numBytes, messageBuffer); 
+            {
+            	printf("\nHTTP Request Type: %s", httpOperation); 
+				printf("\nHTTP version: %s", httpVersion); 
+				printf("\nPath to file: %s", pathToFile); 
+				printf("\nHost: %s", host); 
+            }
+            
+
+            /************************************************/ 
+           	/* Examine the first character of the request 	*/ 
+           	/* to determine what HTTP operation it is 		*/ 
+           	/************************************************/ 
+           	switch(messageBuffer[0])
+           	{
+           		case 'G': 
+           			if(DEBUG)
+           				printf("\nReceived HTTP GET request."); 
+           			break; 
+           		case 'P': 
+           			if(DEBUG)
+           				printf("\nReceived HTTP POST request."); 
+           			break; 
+           		case 'H':
+           			if(DEBUG)
+           				printf("\nReceived HTTP HEAD request."); 
+           			break; 
+           		default: 
+           			break; 
+           	}
+
+            if(DEBUG)
+           		printf("\nReceived %zu bytes from the client: \n\n%s\n", numBytes, messageBuffer);
+
+
         }
 
 		/****************************************************************/ 
