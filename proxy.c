@@ -17,7 +17,10 @@ int main()
 	char messageBuffer[MAX_MESSAGE_SIZE]; 
 	ssize_t numBytes = 0; 
 	in_port_t receivingPort; 			// port for receiving messages 
-	int sock; 						// socket for incoming connections 
+	int sock; 							// socket for incoming connections 
+	int childCount = 0; 				// number of children processes currently running 
+	int pid = 0; 
+	int iterationCounter = 0; 
 
 	printf("================================================="); 
 	printf("\nWelcome to the CptS 455 Proxy Server!"); 
@@ -34,9 +37,15 @@ int main()
     /****************************************/ 
     struct sockaddr_in addr; 
     memset(&addr, 0, sizeof(addr)); 
-    addr.sin_family = AF_INET;                                        // IPV4 address family 
-    addr.sin_addr.s_addr = htonl(INADDR_ANY);         // any incoming interface 
-    addr.sin_port = PORT; 
+    addr.sin_family = AF_INET;                                      // IPV4 address family 
+    addr.sin_addr.s_addr = htonl(INADDR_ANY);         				// any incoming interface 
+    addr.sin_port = htons(PORT); 									// is htons() correct here? 
+
+    if(DEBUG)
+    {
+    	printf("\nPORT: %d", PORT); 
+    	printf("\nhtons(PORT): %d", htons(PORT)); 
+    }
 
     /************************************/ 
     /* Bind to the local address 		*/ 
@@ -44,15 +53,23 @@ int main()
 	if(bind(sock, (struct sockaddr*) &addr, sizeof(addr)) < 0)
 		DieWithSystemMessage("bind() failed"); 
 
+	if(DEBUG)
+		printf("\nSuccessfully bound socket #%d to port #%d", sock, PORT); 
+
 	/****************************************************************/ 
 	/* Mark the socket so it will list for incoming connections 	*/ 
 	/****************************************************************/
 	if(listen(sock, MAXPENDING) < 0)
 		DieWithSystemMessage("listen() failed");
 
+	if(DEBUG)
+		printf("\nSuccessfully marked socket #%d for listening", sock); 
+
 
 	do
 	{
+		iterationCounter++; 
+		printf("\nIteration %d: \n\n", iterationCounter); 
 		if(DEBUG)
 			printf("\nServer ready for incoming connections..."); 
 
@@ -62,14 +79,50 @@ int main()
 		socklen_t clntAddrLen = sizeof(clntAddr);
 
 		/************************************************************/ 
-		/* Accept connections from web clients on port 2500 		*/ 
+		/* Accept connections from web clients on port 80 		*/ 
 		/************************************************************/ 
 		int clntSock = accept(sock, (struct sockaddr*) &clntAddr, &clntAddrLen); 
 
 		if(clntSock < 0)
 			DieWithSystemMessage("accept() failed"); 
+
+		if(DEBUG)
+			printf("\nSuccessfully accepted connection. Client is using socket %d", clntSock); 
+
+		char clntName[INET_ADDRSTRLEN];                 // String for client address
+        if(inet_ntop(AF_INET, &clntAddr.sin_addr.s_addr, clntName, sizeof(clntName)) != 0)
+        {
+        	printf("\nHandling client %s/%d\n", clntName, ntohs(clntAddr.sin_port));
+        }
+
+		/****************************************************************/ 
+		/* Fork a process to handle communication for this request 		*/ 
+		/****************************************************************/ 
+		// if(fork() == 0)
+		// {
+		// 	close(sock); 
+		// 	do
+		// 	{
+		// 		// Do stuff as long as we're talking to the client 
+		// 	}
+		// 	while(1); 
+
+		// 	close(clntSock); 
+		// }
+
+		// close(clntSock); 
+		// childCount++; 
+
+		// while(childCount)
+		// {
+		// 	pid = waitpid(-1, NULL, WNOHANG); 
+		// 	if(pid == 0)
+		// 		break; 
+		// 	else
+		// 		childCount--; 
+		// }
 		
-		break; 
+		//break; 
 	}
 	while(1); 
 
