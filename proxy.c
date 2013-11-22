@@ -73,10 +73,10 @@ int main()
 
 		struct sockaddr_in clntAddr; 		// client address
 
-		socklen_t clntAddrLen = sizeof(clntAddr);		// Set length of client address structure
+		socklen_t clntAddrLen = sizeof(clntAddr);	
 
 		/************************************************************/ 
-		/* Accept connections from web clients on port 80 		*/ 
+		/* Accept connections from web clients on PORT				*/ 
 		/************************************************************/ 
 		int clntSock = accept(sock, (struct sockaddr*) &clntAddr, &clntAddrLen); 
 
@@ -96,13 +96,20 @@ int main()
         {
         	printf("\nHandling client on socket #%d: \n\tIP address: %s\n\tPort #: %d\n", clntSock, clntName, clntAddr.sin_port);
 
+        	/*************************************/ 
         	/* Receive some data from the client */ 
+        	/*************************************/ 
         	numBytes = recv(clntSock, messageBuffer, MAX_MESSAGE_SIZE, 0);
 
         	if(numBytes < 0)
             	DieWithSystemMessage("recv() failed\n"); 
             else if(numBytes == 0)
-                    DieWithUserMessage("recv()", "connection closed prematurely\n"); 
+            {
+            	if(DEBUG)
+            		printf("\nrecv() failed: No data received."); 
+
+            	continue;		// go back to the beginning of the infinite loop  
+            }
 
             int tokenizer = 0; 			// used to tokenize the HTTP request headers into OP /path/to/file HTTP/1.x 
             int i = 0; 					// used for filling up respective buffers with information from the HTTP request headers
@@ -195,7 +202,28 @@ int main()
            	}
 
             if(DEBUG)
-           		printf("\nReceived %zu bytes from the client: \n\n%s\n", numBytes, messageBuffer);
+           		printf("\nReceived %zu bytes from the client. Here is the message I received: \n\n%s\n", numBytes, messageBuffer);
+
+
+           	// TODO: Send some data back to the client 
+           	numBytes = send(clntSock, messageBuffer, strlen(messageBuffer), 0); 
+
+           	if(numBytes < 0)
+            	DieWithSystemMessage("send() failed\n"); 
+            else if(numBytes == 0)
+            {
+            	if(DEBUG)
+            		printf("\nsend() failed: No data sent."); 
+
+            	continue;		// go back to the beginning of the infinite loop  
+            }
+
+
+
+           	if(DEBUG)
+           		printf("\nSuccessfully sent %zu bytes to client on socket #%d. Here is the message I sent: \n\n%s\n", numBytes, clntSock, messageBuffer); 
+
+
 
 
         }
