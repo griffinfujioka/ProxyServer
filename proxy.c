@@ -9,6 +9,14 @@ static int MAX_MESSAGE_SIZE = 1024;
 
 static int MAXPENDING = 5; 
 
+static int SIZEOF_HTTP_OPERATION = 5; 
+
+static int SIZEOF_PATH_TO_FILE = 256; 
+
+static int SIZEOF_HTTP_VERSION = 24; 
+
+static int SIZEOF_HOSTNAME = 256; 
+
 #define PORT 2500 
 
 
@@ -21,6 +29,11 @@ int main()
 	int childCount = 0; 				// number of children processes currently running 
 	int pid = 0; 
 	int iterationCounter = 0; 
+
+	char httpOperation[SIZEOF_HTTP_OPERATION]; 		// I.e., GET, POST, HEAD
+	char pathToFile[SIZEOF_PATH_TO_FILE]; 			// I.e., http://www.cnn.com
+	char httpVersion[SIZEOF_HTTP_VERSION]; 			// I.e., HTTP/1.1
+	char host[SIZEOF_HOSTNAME]; 					// I.e., www.cnn.com 
 
 	printf("================================================="); 
 	printf("\nWelcome to the CptS 455 Proxy Server!"); 
@@ -69,7 +82,14 @@ int main()
 		if(DEBUG)
 			printf("\nServer ready for incoming connections..."); 
 
+		/****************************************/
+		/* Zero out all important buffers 		*/
+		/****************************************/  
 		memset(&messageBuffer, 0, MAX_MESSAGE_SIZE); 			// zero the message buffer 
+		memset(&httpOperation, 0, SIZEOF_HTTP_OPERATION); 		// zero the HTTP operation buffer
+		memset(&pathToFile, 0, SIZEOF_PATH_TO_FILE); 			// zero the path to file buffer 
+		memset(&httpVersion, 0, SIZEOF_HTTP_VERSION); 			// zero the HTTP version buffer
+		memset(&host, 0, SIZEOF_HOSTNAME); 						// zero the host buffer 
 
 		struct sockaddr_in clntAddr; 		// client address
 
@@ -87,10 +107,7 @@ int main()
 			printf("\nSuccessfully accepted connection. Client is using socket %d", clntSock); 
 
 		char clntName[INET_ADDRSTRLEN];                 // String for client address
-		char httpOperation[5]; 			// I.e., GET, POST, HEAD
-		char pathToFile[256]; 			// I.e., http://www.cnn.com
-		char httpVersion[24]; 			// I.e., HTTP/1.1
-		char host[256]; 				// I.e., www.cnn.com 
+		
 
         if(inet_ntop(AF_INET, &clntAddr.sin_addr.s_addr, clntName, sizeof(clntName)) != 0)
         {
@@ -204,8 +221,9 @@ int main()
             if(DEBUG)
            		printf("\nReceived %zu bytes from the client. Here is the message I received: \n\n%s\n", numBytes, messageBuffer);
 
-
-           	// TODO: Send some data back to the client 
+           	/****************************************/ 
+           	/* Send some data back to the client 	*/ 
+           	/****************************************/ 
            	numBytes = send(clntSock, messageBuffer, strlen(messageBuffer), 0); 
 
            	if(numBytes < 0)
@@ -231,31 +249,48 @@ int main()
 		/****************************************************************/ 
 		/* Fork a process to handle communication for this request 		*/ 
 		/****************************************************************/ 
-		// if(fork() == 0)
-		// {
-		// 	close(sock); 
-		// 	do
-		// 	{
-		// 		// Do stuff as long as we're talking to the client 
-		// 	}
-		// 	while(1); 
+		pid = fork(); 
+		if(pid == 0)
+		{
+			if(DEBUG)
+			{
+				printf("\nSuccessfully forked process %d to handle communication with %s", pid, pathToFile); 
+			}
+			close(sock); 
+			do
+			{
+				// Do stuff as long as we're talking to the client 
+				// (1) Read an HTTP request from clntSock 
+				// (2) Create a new socket connected to the server specified in the client's HTTP request 
+				// (3) Pass an optionally-modified version of the client's request and send it to the server 
+				// (4) Read the server's response message and pass an optionally-modified version of it back to the client 
+			}
+			while(1); 
 
-		// 	close(clntSock); 
-		// }
+			close(clntSock); 
+		}
+		else if(pid < 0)
+		{
+			if(DEBUG)
+			{
+				printf("\nFailed to fork process to handle communication with %s", pathToFile); 
+			}
+		}
 
-		// close(clntSock); 
-		// childCount++; 
+		printf("\npid=%d", pid); 
 
-		// while(childCount)
-		// {
-		// 	pid = waitpid(-1, NULL, WNOHANG); 
-		// 	if(pid == 0)
-		// 		break; 
-		// 	else
-		// 		childCount--; 
-		// }
+		close(clntSock); 
+		childCount++; 
+
+		while(childCount)
+		{
+			pid = waitpid(-1, NULL, WNOHANG); 
+			if(pid == 0)
+				break; 
+			else
+				childCount--; 
+		}
 		
-		//break; 
 	}
 	while(1); 
 
