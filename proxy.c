@@ -47,7 +47,7 @@ int main()
 	/* Create a socket for handling new connection requests 	*/ 
 	/* This is the socket which will be used 
 	/************************************************************/ 
-	if((sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0)
+	if((sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0)			// sock = s1 
     	DieWithSystemMessage("socket() failed"); 
 
     /****************************************/ 
@@ -101,7 +101,7 @@ int main()
 		/************************************************************/ 
 		/* Accept connections from web clients on PORT				*/ 
 		/************************************************************/ 
-		int clntSock = accept(sock, (struct sockaddr*) &clntAddr, &clntAddrLen); 
+		int clntSock = accept(sock, (struct sockaddr*) &clntAddr, &clntAddrLen); 			// clntSock = s2 
 
 		if(clntSock < 0)
 			DieWithSystemMessage("accept() failed"); 
@@ -124,11 +124,6 @@ int main()
 
 			if(pid >= 0)
 			{
-				if(DEBUG)
-				{
-					printf("\nSuccessfully forked process %d to handle communication with %s", pid, pathToFile); 
-					printf("\n"); 
-				}
 
 				close(sock);  			// closing fd does not close socket unless last reference 
 
@@ -227,6 +222,12 @@ int main()
 						printf("\nHost: %s", host); 
 						printf("\n"); 
 		            }
+
+		            if(DEBUG)
+					{
+						printf("\nSuccessfully forked process %d to handle communication with %s", pid, pathToFile); 
+						printf("\n"); 
+					}
 		            
 
 		            /************************************************/ 
@@ -254,23 +255,23 @@ int main()
 	           		/********************************************************************************************/ 
 					/* (2) Create a new socket connected to the server specified in the client's HTTP request 	*/ 
 					/********************************************************************************************/ 
-					struct sockaddr_in serverAddr; 		// server address structure
-					socklen_t serverAddrLen = sizeof(serverAddr);	
+					// struct sockaddr_in serverAddr; 		// server address structure
+					// socklen_t serverAddrLen = sizeof(serverAddr);	
 
-					if(DEBUG)
-					{
-						printf("\nAttempting to accept connection on socket #%d", clntSock); 
-					}
+					// if(DEBUG)
+					// {
+					// 	printf("\nAttempting to accept connection on socket #%d", clntSock); 
+					// }
 
-					serverSock = accept(clntSock, (struct sockaddr*) &serverAddr, &serverAddrLen); 
+					// serverSock = accept(clntSock, (struct sockaddr*) &serverAddr, &serverAddrLen); 
 
-					if(serverSock < 0)
-						printf("accept() failed"); 
+					// if(serverSock < 0)
+					// 	printf("accept() failed"); 
 
-					if(DEBUG)
-						printf("\nSuccessfully accepted connection. Client is using socket %d", clntSock); 
+					// if(DEBUG)
+					// 	printf("\nSuccessfully accepted connection. Client is using socket %d", clntSock); 
 
-					break; 
+					// break; 
 
 					// /************************************************************************************************/ 
 					//  (3) Pass an optionally-modified version of the client's request and send it to the server 	  
@@ -314,6 +315,7 @@ int main()
 				while(1); 
 
 				close(clntSock); 
+
 				if(DEBUG)
 					printf("\nSuccessfully closed socket %d", clntSock); 
 			}
@@ -336,7 +338,10 @@ int main()
 				else
 					childCount--; 
 			}
-		}	
+		}
+
+
+		// TODO: Close everything up. 	
 		
 	}
 	while(1); 
