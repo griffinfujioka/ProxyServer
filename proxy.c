@@ -37,6 +37,9 @@ int main()
 
 	int serverSock = 0; 			// socket for connecting to server 
 
+	struct sockaddr_in clntAddr; 		// client address
+	socklen_t clntAddrLen; 
+
 	printf("================================================="); 
 	printf("\nWelcome to the CptS 455 Proxy Server!"); 
 	printf("\n\tCreated by: Griffin Fujioka"); 
@@ -93,10 +96,11 @@ int main()
 		memset(&pathToFile, 0, SIZEOF_PATH_TO_FILE); 			// zero the path to file buffer 
 		memset(&httpVersion, 0, SIZEOF_HTTP_VERSION); 			// zero the HTTP version buffer
 		memset(&host, 0, SIZEOF_HOSTNAME); 						// zero the host buffer 
+		memset(&clntAddr, 0, sizeof(clntAddr)); 				// zero the client address buffer 
 
-		struct sockaddr_in clntAddr; 		// client address
+		
 
-		socklen_t clntAddrLen = sizeof(clntAddr);	
+		clntAddrLen = sizeof(clntAddr);	
 
 		/************************************************************/ 
 		/* Accept connections from web clients on PORT				*/ 
@@ -104,7 +108,11 @@ int main()
 		int clntSock = accept(sock, (struct sockaddr*) &clntAddr, &clntAddrLen); 			// clntSock = s2 
 
 		if(clntSock < 0)
-			DieWithSystemMessage("accept() failed"); 
+		{
+			printf("accept() failed. No clients are trying to talk to me.");
+			continue; 		// go back to the beginning of the infinite loop  
+		}
+			
 
 		if(DEBUG)
 			printf("\nSuccessfully accepted connection. Client is using socket %d", clntSock); 
@@ -276,28 +284,28 @@ int main()
 					// /************************************************************************************************/ 
 					//  (3) Pass an optionally-modified version of the client's request and send it to the server 	  
 					// /************************************************************************************************/ 
-		   //         	numBytes = send(serverSock, messageBuffer, strlen(messageBuffer), 0); 
+		           	numBytes = send(clntSock, messageBuffer, strlen(messageBuffer), 0); 
 
-		   //         	if(numBytes < 0)
-		   //          	DieWithSystemMessage("send() failed\n"); 
-		   //          else if(numBytes == 0)
-		   //          {
-		   //          	if(DEBUG)
-		   //          		printf("\nsend() failed: No data sent."); 
+		           	if(numBytes < 0)
+		            	DieWithSystemMessage("send() failed\n"); 
+		            else if(numBytes == 0)
+		            {
+		            	if(DEBUG)
+		            		printf("\nsend() failed: No data sent."); 
 
-		   //          	continue;		// go back to the beginning of the infinite loop  
-		   //          }
+		            	continue;		// go back to the beginning of the infinite loop  
+		            }
 
 
 
-		   //         	if(DEBUG)
-		   //         		printf("\nSuccessfully sent %zu bytes to client on socket #%d. Here is the message I sent: \n\n%s\n", numBytes, clntSock, messageBuffer); 
+		           	if(DEBUG)
+		           		printf("\nSuccessfully sent %zu bytes to client on socket #%d. Here is the message I sent: \n\n%s\n", numBytes, clntSock, messageBuffer); 
 
-	    //        		/************************************************************************************************************/ 
-					// /* (4) Read the server's response message and pass an optionally-modified version of it back to the client 	*/ 
-					// /************************************************************************************************************/ 
+	           		/************************************************************************************************************/ 
+					/* (4) Read the server's response message and pass an optionally-modified version of it back to the client 	*/ 
+					/************************************************************************************************************/ 
 					// memset(&messageBuffer, 0, SIZEOF_MESSAGEBUFFER); 
-					// numBytes = recv(serverSock, messageBuffer, SIZEOF_MESSAGEBUFFER, 0);
+					// numBytes = recv(clntSock, messageBuffer, SIZEOF_MESSAGEBUFFER, 0);
 
 		   //      	if(numBytes < 0)
 		   //          	DieWithSystemMessage("recv() failed\n"); 
@@ -311,13 +319,15 @@ int main()
 
 		   //          if(DEBUG)
 	    //        			printf("\nReceived %zu bytes from the client. Here is the response message I received: \n\n%s\n", numBytes, messageBuffer);
+
+		           	break; 
 				}
 				while(1); 
 
 				close(clntSock); 
 
 				if(DEBUG)
-					printf("\nSuccessfully closed socket %d", clntSock); 
+					printf("\nDone communicating with %s. Successfully closed socket %d.", pathToFile, clntSock); 
 			}
 			else if(pid < 0)
 			{
