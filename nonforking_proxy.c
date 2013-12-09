@@ -1,5 +1,7 @@
 #include <stdio.h>
 #include <netinet/in.h>
+#include <arpa/inet.h>
+#include <netdb.h>
 #include <string.h>
 #include "DieWithMessage.c"
 
@@ -24,6 +26,8 @@ static int SIZEOF_HOSTNAME = 256;
 /* may gain a better understanding of the logic which each process in 	*/ 
 /* my forking proxy server will have to follow. 						*/ 
 /************************************************************************/ 
+
+int hostname_to_ip(char* host, char* ip); 
 
 
 int main()
@@ -251,8 +255,52 @@ int main()
            		/********************************************************************************************/ 
 				/* (2) Create a new socket connected to the server specified in the client's HTTP request 	*/ 
 				/********************************************************************************************/ 
-				// struct sockaddr_in serverAddr; 		// server address structure
-				// socklen_t serverAddrLen = sizeof(serverAddr);	
+				if((serverSock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0)			
+    				DieWithSystemMessage("socket() failed"); 
+
+    			if(DEBUG)
+    			{
+    				printf("\nSuccessfully created new socket #%d which I will connect to the server.", serverSock); 
+    			}
+
+
+				struct sockaddr_in serverAddr; 		// server address structure
+				memset(&serverAddr, 0, sizeof(serverAddr));
+				socklen_t serverAddrLen = sizeof(serverAddr);	
+				serverAddr.sin_family = AF_INET; 
+				serverAddr.sin_port = htons(1337); 
+
+				char ip[100]; 
+
+				memset(&ip, 0, sizeof(ip)); 
+
+				hostname_to_ip("www.msn.com", ip); 
+
+
+				if(DEBUG)
+				{
+					printf("\nHost's IP address: %s", ip); 
+				}
+
+				
+
+				// Copy the network address to the sockaddr_in structure
+				// memcpy(&serverAddr.sin_addr, &ip, strlen(ip)); 
+
+				// if(connect(serverSock, (struct sockaddr*)&serverAddr, sizeof(serverAddr) < 0))
+				// {
+				// 	if(DEBUG)
+				// 	{
+				// 		printf("\nconnect() failed"); 
+				// 		break; 
+				// 	}
+				// }
+
+				// if(DEBUG)
+				// {
+				// 	printf("\nSuccessfully connected to server."); 
+				// }
+
 
 				// if(DEBUG)
 				// {
@@ -300,21 +348,21 @@ int main()
            		/************************************************************************************************************/ 
 				/* (4) Read the server's response message and pass an optionally-modified version of it back to the client 	*/ 
 				/************************************************************************************************************/ 
-				memset(&messageBuffer, 0, SIZEOF_MESSAGEBUFFER); 			// zero the buffer and re-use it 
-				numBytes = recv(clntSock, messageBuffer, SIZEOF_MESSAGEBUFFER, 0);
+				// memset(&messageBuffer, 0, SIZEOF_MESSAGEBUFFER); 			// zero the buffer and re-use it 
+				// numBytes = recv(clntSock, messageBuffer, SIZEOF_MESSAGEBUFFER, 0);
 
-	        	if(numBytes < 0)
-	            	DieWithSystemMessage("recv() failed\n"); 
-	            else if(numBytes == 0)
-	            {
-	            	if(DEBUG)
-	            		printf("\nrecv() failed: No data received."); 
+	   //      	if(numBytes < 0)
+	   //          	DieWithSystemMessage("recv() failed\n"); 
+	   //          else if(numBytes == 0)
+	   //          {
+	   //          	if(DEBUG)
+	   //          		printf("\nrecv() failed: No data received."); 
 
-	            	break;		// go back to the beginning of the infinite loop  
-	            }
+	   //          	break;		// go back to the beginning of the infinite loop  
+	   //          }
 
-	            if(DEBUG)
-           			printf("\nReceived %zu bytes from the client. Here is the response message I received: \n\n%s\n", numBytes, messageBuffer);
+	   //          if(DEBUG)
+    //        			printf("\nReceived %zu bytes from the client. Here is the response message I received: \n\n%s\n", numBytes, messageBuffer);
 
 	           	break; 
 			}
@@ -323,7 +371,7 @@ int main()
 			close(clntSock); 
 
 			if(DEBUG)
-				printf("\nDone communicating with %s. Successfully closed socket %d.", pathToFile, clntSock); 
+				printf("\nDone communicating with %s. \nSuccessfully closed socket %d.", pathToFile, clntSock); 
 		
 		}
 
@@ -340,4 +388,40 @@ int main()
 	printf("\nPress any key to exit..."); 
 	char ch = getchar(); 
 	return 0; 
+}
+
+int hostname_to_ip(char* host, char* ip)
+{
+	int sockfd; 
+	struct addrinfo hints, *servInfo, *p; 
+	struct sockaddr_in *h;
+	int rv; 
+
+	if(DEBUG)
+		printf("\nAttempting to resolve hostname %s", host); 
+
+	memset(&hints, 0, sizeof(hints)); 
+	hints.ai_family = AF_UNSPEC; 
+	hints.ai_socktype = SOCK_STREAM; 
+
+
+	if((rv = getaddrinfo(host, "http", &hints, &servInfo)) != 0)
+	{
+		printf("\nError"); 
+		return 1; 
+	}
+
+	for(p=servInfo; p != NULL; p = p->ai_next)
+	{
+		h = (struct sockaddr_in *)p->ai_addr;
+		strcpy(ip, inet_ntoa(h->sin_addr)); 
+		printf("Resolved hostname %s to IP address %s", host, inet_ntoa(h->sin_addr)); 
+	}
+
+	freeaddrinfo(servInfo); 
+
+	return 0; 
+
+
+
 }
