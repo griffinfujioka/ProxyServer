@@ -29,6 +29,8 @@ static int SIZEOF_HOSTNAME = 256;
 
 int hostname_to_ip(char* host, char* ip); 
 
+void build_hostname(char* host, char* fixedHostname); 
+
 
 int main()
 {
@@ -206,12 +208,20 @@ int main()
 	            /********************************************************/ 
 	            /* Parse messageBuffer to attain host name 				*/ 
 	            /********************************************************/ 
-	            while(messageBuffer[tokenizer] != '\r')
+	            while(messageBuffer[tokenizer] != ' ')		// Skip over the 'Host: ' part 
 	            {
-	            	host[i] = messageBuffer[tokenizer]; 
+	            	tokenizer++;
+	            }
+
+	            tokenizer++; 
+
+	            while(messageBuffer[tokenizer] != '\r')
+            	{
+            		host[i] = messageBuffer[tokenizer]; 
+	            	printf("%c", host[i]); 
 	            	tokenizer++; 
 	            	i++; 
-	            }
+            	}
 
 	            host[i] = '\0'; 
 	            tokenizer++; 
@@ -223,7 +233,7 @@ int main()
 	            	printf("\nHTTP Request Type: %s", httpOperation); 
 					printf("\nHTTP version: %s", httpVersion); 
 					printf("\nPath to file: %s", pathToFile); 
-					printf("\nHost: %s", host); 
+					//printf("\nHost: %s", host); 
 					printf("\n"); 
 	            }
 
@@ -271,10 +281,16 @@ int main()
 				serverAddr.sin_port = htons(1337); 
 
 				char ip[100]; 
+				char fixedHostname[SIZEOF_HOSTNAME]; 
 
-				memset(&ip, 0, sizeof(ip)); 
+				memset(&ip, 0, sizeof(ip));
+				memset(&fixedHostname, 0, sizeof(fixedHostname));
 
-				hostname_to_ip("www.msn.com", ip); 
+				build_hostname(host, fixedHostname); 
+
+				 
+
+				hostname_to_ip(fixedHostname, ip); 
 
 
 				if(DEBUG)
@@ -377,7 +393,7 @@ int main()
 
 
 		// TODO: Close everything up. 	
-		
+		printf("\n==============================================\n"); 
 	}
 	while(1); 
 
@@ -415,13 +431,41 @@ int hostname_to_ip(char* host, char* ip)
 	{
 		h = (struct sockaddr_in *)p->ai_addr;
 		strcpy(ip, inet_ntoa(h->sin_addr)); 
-		printf("Resolved hostname %s to IP address %s", host, inet_ntoa(h->sin_addr)); 
+		if(DEBUG)
+			printf("\nResolved hostname %s to IP address %s", host, inet_ntoa(h->sin_addr)); 
 	}
 
 	freeaddrinfo(servInfo); 
 
 	return 0; 
 
+}
 
+void build_hostname(char* host, char* fixedHostname)
+{
+	int i = 0; 
+	printf("\1"); 
+	for(i=0; i < 3; i++)
+	{
+		fixedHostname[i] = 'w'; 
+	}
 
+	printf("\2"); 
+
+	fixedHostname[i] = '.'; 
+	i++; 
+
+	int j = 0; 
+	while(host[j] != 0)
+	{
+		fixedHostname[i] = host[j]; 
+		i++; 
+		j++; 
+	}
+
+	printf("\3"); 
+
+	fixedHostname[i] = '\0'; 	
+	if(DEBUG)
+		printf("\nBuilt host name: %s", fixedHostname); 
 }
