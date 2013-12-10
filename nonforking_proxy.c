@@ -218,7 +218,6 @@ int main()
 	            while(messageBuffer[tokenizer] != '\r')
             	{
             		host[i] = messageBuffer[tokenizer]; 
-	            	printf("%c", host[i]); 
 	            	tokenizer++; 
 	            	i++; 
             	}
@@ -275,10 +274,8 @@ int main()
 
 
 				struct sockaddr_in serverAddr; 		// server address structure
-				memset(&serverAddr, 0, sizeof(serverAddr));
-				socklen_t serverAddrLen = sizeof(serverAddr);	
 				serverAddr.sin_family = AF_INET; 
-				serverAddr.sin_port = htons(1337); 
+				serverAddr.sin_port = htons(80); 
 
 				char ip[100]; 
 				char fixedHostname[SIZEOF_HOSTNAME]; 
@@ -292,54 +289,39 @@ int main()
 
 				hostname_to_ip(fixedHostname, ip); 
 
+				inet_pton(AF_INET, ip, &serverAddr.sin_addr.s_addr); 
+
 
 				if(DEBUG)
 				{
-					printf("\nHost's IP address: %s", ip); 
+					printf("\nServer's IP address: %s", ip); 
+					printf("\nAttempting to connect() to server using IP address %s and Port #%d", ip, htons(clntAddr.sin_port)); 
 				}
 
-				
+				if((connect(serverSock, (struct sockaddr_in *) &serverAddr, sizeof(serverAddr))) < 0)
+				{
+					if(DEBUG)
+					{
+						printf("\nconnect() failed: failed to connect to server"); 
+						continue; 
+					}
+				}
 
-				// Copy the network address to the sockaddr_in structure
-				// memcpy(&serverAddr.sin_addr, &ip, strlen(ip)); 
+				if(DEBUG)
+				{
+					printf("\nSuccessfully connected to server."); 
+				}
 
-				// if(connect(serverSock, (struct sockaddr*)&serverAddr, sizeof(serverAddr) < 0))
-				// {
-				// 	if(DEBUG)
-				// 	{
-				// 		printf("\nconnect() failed"); 
-				// 		break; 
-				// 	}
-				// }
-
-				// if(DEBUG)
-				// {
-				// 	printf("\nSuccessfully connected to server."); 
-				// }
-
-
-				// if(DEBUG)
-				// {
-				// 	printf("\nAttempting to accept connection on socket #%d", clntSock); 
-				// }
-
-				// serverSock = accept(clntSock, (struct sockaddr*) &serverAddr, &serverAddrLen); 
-
-				// if(serverSock < 0)
-				// 	printf("accept() failed"); 
-
-				// if(DEBUG)
-				// 	printf("\nSuccessfully accepted connection. Client is using socket %d", clntSock); 
-
-				// break; 
 
 				// /************************************************************************************************/ 
 				//  (3) Pass an optionally-modified version of the client's request and send it to the server 	  
 				// /************************************************************************************************/ 
 
 				if(DEBUG)
-					printf("\nI will now echo the request back using socket #%d", clntSock); 
-	           	numBytes = send(clntSock, messageBuffer, strlen(messageBuffer), 0); 
+					printf("\nI will now pass the request to the server back using socket #%d", serverSock); 
+
+
+	           	numBytes = send(serverSock, messageBuffer, strlen(messageBuffer), 0); 
 
 	           	if(numBytes < 0)
 	            	DieWithSystemMessage("send() failed\n"); 
@@ -357,28 +339,28 @@ int main()
 	           	{
 
 
-	           		printf("\nSuccessfully sent %zu bytes to client on socket #%d. Here is the message I sent: \n\n%s\n", numBytes, clntSock, messageBuffer); 
+	           		printf("\nSuccessfully passed %zu bytes to server on socket #%d. Here is the message I sent: \n\n%s\n", numBytes, serverSock, messageBuffer); 
 	           		printf("\nI am now waiting for the server's response..."); 
 	           	}
 
            		/************************************************************************************************************/ 
 				/* (4) Read the server's response message and pass an optionally-modified version of it back to the client 	*/ 
 				/************************************************************************************************************/ 
-				// memset(&messageBuffer, 0, SIZEOF_MESSAGEBUFFER); 			// zero the buffer and re-use it 
-				// numBytes = recv(clntSock, messageBuffer, SIZEOF_MESSAGEBUFFER, 0);
+				memset(&messageBuffer, 0, SIZEOF_MESSAGEBUFFER); 			// zero the buffer and re-use it 
+				numBytes = recv(serverSock, messageBuffer, SIZEOF_MESSAGEBUFFER, 0);
 
-	   //      	if(numBytes < 0)
-	   //          	DieWithSystemMessage("recv() failed\n"); 
-	   //          else if(numBytes == 0)
-	   //          {
-	   //          	if(DEBUG)
-	   //          		printf("\nrecv() failed: No data received."); 
+	        	if(numBytes < 0)
+	            	DieWithSystemMessage("recv() failed\n"); 
+	            else if(numBytes == 0)
+	            {
+	            	if(DEBUG)
+	            		printf("\nrecv() failed: No data received."); 
 
-	   //          	break;		// go back to the beginning of the infinite loop  
-	   //          }
+	            	break;		// go back to the beginning of the infinite loop  
+	            }
 
-	   //          if(DEBUG)
-    //        			printf("\nReceived %zu bytes from the client. Here is the response message I received: \n\n%s\n", numBytes, messageBuffer);
+	            if(DEBUG)
+           			printf("\nReceived %zu bytes from the client. Here is the response message I received: \n\n%s\n", numBytes, messageBuffer);
 
 	           	break; 
 			}
@@ -414,7 +396,7 @@ int hostname_to_ip(char* host, char* ip)
 	int rv; 
 
 	if(DEBUG)
-		printf("\nAttempting to resolve hostname %s", host); 
+		printf("\nAttempting to resolve host name %s", host); 
 
 	memset(&hints, 0, sizeof(hints)); 
 	hints.ai_family = AF_UNSPEC; 
@@ -432,7 +414,7 @@ int hostname_to_ip(char* host, char* ip)
 		h = (struct sockaddr_in *)p->ai_addr;
 		strcpy(ip, inet_ntoa(h->sin_addr)); 
 		if(DEBUG)
-			printf("\nResolved hostname %s to IP address %s", host, inet_ntoa(h->sin_addr)); 
+			printf("\nResolved host name %s to IP address %s", host, inet_ntoa(h->sin_addr)); 
 	}
 
 	freeaddrinfo(servInfo); 
@@ -444,13 +426,10 @@ int hostname_to_ip(char* host, char* ip)
 void build_hostname(char* host, char* fixedHostname)
 {
 	int i = 0; 
-	printf("\1"); 
 	for(i=0; i < 3; i++)
 	{
 		fixedHostname[i] = 'w'; 
 	}
-
-	printf("\2"); 
 
 	fixedHostname[i] = '.'; 
 	i++; 
@@ -462,8 +441,6 @@ void build_hostname(char* host, char* fixedHostname)
 		i++; 
 		j++; 
 	}
-
-	printf("\3"); 
 
 	fixedHostname[i] = '\0'; 	
 	if(DEBUG)
