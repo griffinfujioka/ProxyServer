@@ -352,7 +352,10 @@ int main()
 					numBytes = recv(serverSock, messageBuffer, SIZEOF_MESSAGEBUFFER, 0);
 
 		        	if(numBytes < 0)
-		            	DieWithSystemMessage("recv() failed\n"); 
+		        	{
+		            	printf("recv() failed\n"); 
+		            	break; 
+		            }
 		            else if(numBytes == 0)
 		            {
 		            	if(DEBUG)
