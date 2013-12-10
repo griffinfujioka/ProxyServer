@@ -1,9 +1,11 @@
 #include <stdio.h>
 #include <netinet/in.h>
+#include <arpa/inet.h>
+#include <netdb.h>
 #include <string.h>
 #include "DieWithMessage.c"
-
-static int DEBUG = 1; 
+#include "debug_config.c"
+#include "hostname_helpers.c"
 
 static int SIZEOF_MESSAGEBUFFER = 1024;
 
@@ -211,12 +213,19 @@ int main()
 		            /********************************************************/ 
 		            /* Parse messageBuffer to attain host name 				*/ 
 		            /********************************************************/ 
-		            while(messageBuffer[tokenizer] != '\r')
+		            while(messageBuffer[tokenizer] != ' ')		// Skip over the 'Host: ' part 
 		            {
-		            	host[i] = messageBuffer[tokenizer]; 
+		            	tokenizer++;
+		            }
+
+		            tokenizer++; 
+
+		            while(messageBuffer[tokenizer] != '\r')
+	            	{
+	            		host[i] = messageBuffer[tokenizer]; 
 		            	tokenizer++; 
 		            	i++; 
-		            }
+	            	}
 
 		            host[i] = '\0'; 
 		            tokenizer++; 
@@ -224,18 +233,15 @@ int main()
 
 		            if(DEBUG)
 		            {
+		            	printf("\n=====     HEADERS      ===== ");
 		            	printf("\nHTTP Request Type: %s", httpOperation); 
 						printf("\nHTTP version: %s", httpVersion); 
 						printf("\nPath to file: %s", pathToFile); 
-						printf("\nHost: %s", host); 
+						//printf("\nHost: %s", host); 
 						printf("\n"); 
 		            }
 
-		            if(DEBUG)
-					{
-						printf("\nSuccessfully forked process %d to handle communication with %s", pid, pathToFile); 
-						printf("\n"); 
-					}
+
 		            
 
 		            /************************************************/ 
@@ -263,28 +269,64 @@ int main()
 	           		/********************************************************************************************/ 
 					/* (2) Create a new socket connected to the server specified in the client's HTTP request 	*/ 
 					/********************************************************************************************/ 
-					// struct sockaddr_in serverAddr; 		// server address structure
-					// socklen_t serverAddrLen = sizeof(serverAddr);	
+					if((serverSock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0)			
+	    				DieWithSystemMessage("socket() failed"); 
 
-					// if(DEBUG)
-					// {
-					// 	printf("\nAttempting to accept connection on socket #%d", clntSock); 
-					// }
+	    			if(DEBUG)
+	    			{
+	    				printf("\nSuccessfully created new socket #%d which I will connect to the server.", serverSock); 
+	    			}
 
-					// serverSock = accept(clntSock, (struct sockaddr*) &serverAddr, &serverAddrLen); 
 
-					// if(serverSock < 0)
-					// 	printf("accept() failed"); 
+					struct sockaddr_in serverAddr; 		// server address structure
+					serverAddr.sin_family = AF_INET; 
+					serverAddr.sin_port = htons(80); 
 
-					// if(DEBUG)
-					// 	printf("\nSuccessfully accepted connection. Client is using socket %d", clntSock); 
+					char ip[100]; 
+					char fixedHostname[SIZEOF_HOSTNAME]; 
 
-					// break; 
+					memset(&ip, 0, sizeof(ip));
+					memset(&fixedHostname, 0, sizeof(fixedHostname));
+
+					build_hostname(host, fixedHostname); 
+
+					 
+
+					hostname_to_ip(fixedHostname, ip); 
+
+					inet_pton(AF_INET, ip, &serverAddr.sin_addr.s_addr); 
+
+
+					if(DEBUG)
+					{
+						printf("\nServer's IP address: %s", ip); 
+						printf("\nAttempting to connect() to server using IP address %s and Port #%d", ip, htons(clntAddr.sin_port)); 
+					}
+
+					if((connect(serverSock, (struct sockaddr *) &serverAddr, sizeof(serverAddr))) < 0)
+					{
+						if(DEBUG)
+						{
+							printf("\nconnect() failed: failed to connect to server"); 
+							continue; 
+						}
+					}
+
+					if(DEBUG)
+					{
+						printf("\nSuccessfully connected to server."); 
+					}
+
 
 					// /************************************************************************************************/ 
 					//  (3) Pass an optionally-modified version of the client's request and send it to the server 	  
 					// /************************************************************************************************/ 
-		           	numBytes = send(clntSock, messageBuffer, strlen(messageBuffer), 0); 
+
+					if(DEBUG)
+						printf("\nI will now pass the request to the server back using socket #%d", serverSock); 
+
+
+		           	numBytes = send(serverSock, messageBuffer, strlen(messageBuffer), 0); 
 
 		           	if(numBytes < 0)
 		            	DieWithSystemMessage("send() failed\n"); 
@@ -299,26 +341,59 @@ int main()
 
 
 		           	if(DEBUG)
-		           		printf("\nSuccessfully sent %zu bytes to client on socket #%d. Here is the message I sent: \n\n%s\n", numBytes, clntSock, messageBuffer); 
+		           	{
+
+
+		           		printf("\nSuccessfully passed %zu bytes to server on socket #%d. Here is the message I sent: \n\n%s\n", numBytes, serverSock, messageBuffer); 
+		           		printf("\nI am now waiting for the server's response..."); 
+		           	}
 
 	           		/************************************************************************************************************/ 
 					/* (4) Read the server's response message and pass an optionally-modified version of it back to the client 	*/ 
 					/************************************************************************************************************/ 
-					// memset(&messageBuffer, 0, SIZEOF_MESSAGEBUFFER); 
-					// numBytes = recv(clntSock, messageBuffer, SIZEOF_MESSAGEBUFFER, 0);
+					while(1)
+					{
+						memset(&messageBuffer, 0, SIZEOF_MESSAGEBUFFER); 			// zero the buffer and re-use it 
+						numBytes = recv(serverSock, messageBuffer, SIZEOF_MESSAGEBUFFER, 0);
 
-		   //      	if(numBytes < 0)
-		   //          	DieWithSystemMessage("recv() failed\n"); 
-		   //          else if(numBytes == 0)
-		   //          {
-		   //          	if(DEBUG)
-		   //          		printf("\nrecv() failed: No data received."); 
+			        	if(numBytes < 0)
+			        	{
+			            	printf("recv() failed\n"); 
+			            	break; 
+			            }
+			            else if(numBytes == 0)
+			            {
+			            	if(DEBUG)
+			            		printf("\nrecv() failed: No data received."); 
 
-		   //          	break;		// go back to the beginning of the infinite loop  
-		   //          }
+			            	break;		// go back to the beginning of the infinite loop  
+			            }
 
-		   //          if(DEBUG)
-	    //        			printf("\nReceived %zu bytes from the client. Here is the response message I received: \n\n%s\n", numBytes, messageBuffer);
+			            if(DEBUG)
+			            {
+			       			printf("\nReceived %zu bytes from the client. Here is the response message I received: \n\n%s\n", numBytes, messageBuffer);
+			       			printf("\nNow I will pass the server's response back the client on socket #%d", clntSock); 
+			       		}
+
+			       		numBytes = send(clntSock, messageBuffer, strlen(messageBuffer),0); 
+
+			       		if(numBytes < 0)
+			            	DieWithSystemMessage("send() failed\n"); 
+			            else if(numBytes == 0)
+			            {
+			            	if(DEBUG)
+			            		printf("\nsend() failed: No data sent."); 
+
+			            	continue;		// go back to the beginning of the infinite loop  
+			            }
+
+
+
+			           	if(DEBUG)
+			           	{
+			           		printf("\nSuccessfully passed %zu bytes to client on socket #%d. Here is the message I sent: \n\n%s\n", numBytes, clntSock, messageBuffer); 
+			           	}
+	           		}
 
 		           	break; 
 				}
