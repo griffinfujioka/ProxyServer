@@ -4,8 +4,8 @@
 #include <netdb.h>
 #include <string.h>
 #include "DieWithMessage.c"
-#include "debug_config.c"
-#include "hostname_helpers.c"
+#include "debug_config.c"		// contains the DEBUG flag
+#include "hostname_helpers.c" 	// helper functions pertaining to host names 
 
 static int SIZEOF_MESSAGEBUFFER = 1024;
 
@@ -18,6 +18,8 @@ static int SIZEOF_PATH_TO_FILE = 256;
 static int SIZEOF_HTTP_VERSION = 24; 
 
 static int SIZEOF_HOSTNAME = 256; 
+
+static int SIZEOF_IPADDRESS = 4; 
 
 #define PORT 2500 
 
@@ -41,6 +43,9 @@ int main()
 
 	struct sockaddr_in clntAddr; 		// client address
 	socklen_t clntAddrLen; 
+
+	int haveDeterminedContentLength = 0; 
+	int contentLength = 0; 
 
 	printf("================================================="); 
 	printf("\nWelcome to the CptS 455 Proxy Server!"); 
@@ -83,12 +88,13 @@ int main()
 		printf("\nSuccessfully marked socket #%d for listening", sock); 
 
 
+	// while still serving... 
 	do
 	{
 		iterationCounter++; 
 		printf("\nIteration %d: \n\n", iterationCounter); 
 		if(DEBUG)
-			printf("\nServer ready for incoming connections..."); 
+			printf("\nServer ready for incoming connections... Incoming connections will be accepted through socket #%d", sock); 
 
 		/****************************************/
 		/* Zero out all important buffers 		*/
@@ -106,261 +112,68 @@ int main()
 
 		/************************************************************/ 
 		/* Accept connections from web clients on PORT				*/ 
+		/* 		i.e., a web browser 								*/ 
 		/************************************************************/ 
 		int clntSock = accept(sock, (struct sockaddr*) &clntAddr, &clntAddrLen); 			// clntSock = s2 
 
 		if(clntSock < 0)
 		{
-			printf("accept() failed. No clients are trying to talk to me.");
-			continue; 		// go back to the beginning of the infinite loop  
+			perror("accept"); 
+			continue;
 		}
+		else
+		{
 			
 
-		if(DEBUG)
-			printf("\nSuccessfully accepted connection. Client is using socket %d", clntSock); 
+			if(DEBUG)
+				printf("\nSuccessfully accepted connection. Client is using socket %d", clntSock); 
 
-		char clntName[INET_ADDRSTRLEN];                 // String for client address
-		
+			char clntName[INET_ADDRSTRLEN];                 // String for client address
+			
 
-        if(inet_ntop(AF_INET, &clntAddr.sin_addr.s_addr, clntName, sizeof(clntName)) != 0)
-        {
-        	printf("\nHandling client on socket #%d: \n\tIP address: %s\n\tPort #: %d\n", clntSock, clntName, clntAddr.sin_port);
+	        if(inet_ntop(AF_INET, &clntAddr.sin_addr.s_addr, clntName, sizeof(clntName)) != 0)
+	        {
+	        	printf("\nHandling client on socket #%d: \n\tIP address: %s\n\tPort #: %d\n", clntSock, clntName, clntAddr.sin_port);
 
 
-			/****************************************************************/ 
-			/* Fork a process to handle communication for this request 		*/ 
-			/****************************************************************/ 
-			pid = fork(); 
+				/****************************************************************/ 
+				/* Fork a process to handle communication for this request 		*/ 
+				/****************************************************************/ 
+				pid = fork(); 
 
-			if(pid >= 0)
-			{
-
-				close(sock);  			// closing fd does not close socket unless last reference 
-
-				if(DEBUG)
+				if(pid >= 0)
 				{
-					printf("\nClosed socket #%d", sock); 
-				}
 
-				// do-while communicating with the client...
-				do
-				{ 
-					/********************************************************/ 
-		        	/* (1) Receive and read an HTTP request from the client */ 
-		        	/********************************************************/ 
-		        	numBytes = recv(clntSock, messageBuffer, SIZEOF_MESSAGEBUFFER, 0);
-
-		        	if(numBytes < 0)
-		            	DieWithSystemMessage("recv() failed\n"); 
-		            else if(numBytes == 0)
-		            {
-		            	if(DEBUG)
-		            		printf("\nrecv() failed: No data received."); 
-
-		            	break;		// go back to the beginning of the infinite loop  
-		            }
-
-		            if(DEBUG)
-	           			printf("\nReceived %zu bytes from the client. Here is the message I received: \n\n%s\n", numBytes, messageBuffer);
-
-
-
-	           		int tokenizer = 0; 			// used to tokenize the HTTP request headers into OP /path/to/file HTTP/1.x 
-		            int i = 0; 					// used for filling up respective buffers with information from the HTTP request headers
-
-		            /********************************************************/ 
-		        	/* Parse messageBuffer to attain the HTTP operation 	*/ 
-		            /********************************************************/  
-		            while(messageBuffer[tokenizer] != ' ')
-		            {
-		            	httpOperation[i] = messageBuffer[tokenizer]; 
-		            	tokenizer++; 
-		            	i++; 
-		            }
-
-		            httpOperation[i] = '\0'; 
-		            tokenizer++; 
-		            i=0; 
-
-		            /********************************************************/ 
-		            /* Parse messageBuffer to attain the path to the file 	*/ 
-		            /********************************************************/ 
-		            while(messageBuffer[tokenizer] != ' ')
-		            { 
-		            	pathToFile[i] = messageBuffer[tokenizer]; 
-		            	tokenizer++; 
-		            	i++; 
-		            }
-
-		            pathToFile[i] = '\0'; 
-		            tokenizer++; 
-		            i=0; 
-
-		            /********************************************************/ 
-		            /* Parse messageBuffer to attain the HTTP version 		*/ 
-		            /********************************************************/ 
-		            while(messageBuffer[tokenizer] != '\r')
-		            { 
-		            	httpVersion[i] = messageBuffer[tokenizer]; 
-		            	tokenizer++; 
-		            	i++; 
-		            }
-
-		            httpVersion[i] = '\0'; 
-		            tokenizer++; 
-		            i=0; 
-
-		            /********************************************************/ 
-		            /* Parse messageBuffer to attain host name 				*/ 
-		            /********************************************************/ 
-		            while(messageBuffer[tokenizer] != ' ')		// Skip over the 'Host: ' part 
-		            {
-		            	tokenizer++;
-		            }
-
-		            tokenizer++; 
-
-		            while(messageBuffer[tokenizer] != '\r')
-	            	{
-	            		host[i] = messageBuffer[tokenizer]; 
-		            	tokenizer++; 
-		            	i++; 
-	            	}
-
-		            host[i] = '\0'; 
-		            tokenizer++; 
-		            i=0; 
-
-		            if(DEBUG)
-		            {
-		            	printf("\n=====     HEADERS      ===== ");
-		            	printf("\nHTTP Request Type: %s", httpOperation); 
-						printf("\nHTTP version: %s", httpVersion); 
-						printf("\nPath to file: %s", pathToFile); 
-						//printf("\nHost: %s", host); 
-						printf("\n"); 
-		            }
-
-
-		            
-
-		            /************************************************/ 
-		           	/* Examine the first character of the request 	*/ 
-		           	/* to determine what HTTP operation it is 		*/ 
-		           	/************************************************/ 
-		           	switch(messageBuffer[0])
-		           	{
-		           		case 'G': 
-		           			if(DEBUG)
-		           				printf("\nReceived HTTP GET request."); 
-		           			break; 
-		           		case 'P': 
-		           			if(DEBUG)
-		           				printf("\nReceived HTTP POST request."); 
-		           			break; 
-		           		case 'H':
-		           			if(DEBUG)
-		           				printf("\nReceived HTTP HEAD request."); 
-		           			break; 
-		           		default: 
-		           			break; 
-		           	}
-
-	           		/********************************************************************************************/ 
-					/* (2) Create a new socket connected to the server specified in the client's HTTP request 	*/ 
-					/********************************************************************************************/ 
-					if((serverSock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0)			
-	    				DieWithSystemMessage("socket() failed"); 
-
-	    			if(DEBUG)
-	    			{
-	    				printf("\nSuccessfully created new socket #%d which I will connect to the server.", serverSock); 
-	    			}
-
-
-					struct sockaddr_in serverAddr; 		// server address structure
-					serverAddr.sin_family = AF_INET; 
-					serverAddr.sin_port = htons(80); 
-
-					char ip[100]; 
-					char fixedHostname[SIZEOF_HOSTNAME]; 
-
-					memset(&ip, 0, sizeof(ip));
-					memset(&fixedHostname, 0, sizeof(fixedHostname));
-
-					build_hostname(host, fixedHostname); 
-
-					 
-
-					hostname_to_ip(fixedHostname, ip); 
-
-					inet_pton(AF_INET, ip, &serverAddr.sin_addr.s_addr); 
-
+					close(sock);  			// closing fd does not close socket unless last reference, which occurs after we stop serving 
 
 					if(DEBUG)
 					{
-						printf("\nServer's IP address: %s", ip); 
-						printf("\nAttempting to connect() to server using IP address %s and Port #%d", ip, htons(clntAddr.sin_port)); 
+						printf("\nSuccessfully forked process to handle communication with client %s", pathToFile); 
+						printf("\nClosed socket #%d in the newly forked process, but it is still alive in it's original process.", sock); 
 					}
 
-					if((connect(serverSock, (struct sockaddr *) &serverAddr, sizeof(serverAddr))) < 0)
-					{
-						if(DEBUG)
-						{
-							printf("\nconnect() failed: failed to connect to server"); 
-							continue; 
-						}
-					}
-
-					if(DEBUG)
-					{
-						printf("\nSuccessfully connected to server."); 
-					}
+					// do-while communicating with the client...
+					do
+					{ 
+						/********************************************************/ 
+			        	/* (1) Receive and read an HTTP request from the client */ 
+			        	/********************************************************/ 
 
 
-					// /************************************************************************************************/ 
-					//  (3) Pass an optionally-modified version of the client's request and send it to the server 	  
-					// /************************************************************************************************/ 
+			        	/****************************************************************/ 
+			        	/* Question: Do I need to extract the filename, document root 	*/ 
+			        	/* and extension type to assign it to the Content-Type header? 	*/ 
+			        	/* Do I need to update the status header to 200? 				*/ 
+			        	/****************************************************************/ 
 
-					if(DEBUG)
-						printf("\nI will now pass the request to the server back using socket #%d", serverSock); 
-
-
-		           	numBytes = send(serverSock, messageBuffer, strlen(messageBuffer), 0); 
-
-		           	if(numBytes < 0)
-		            	DieWithSystemMessage("send() failed\n"); 
-		            else if(numBytes == 0)
-		            {
-		            	if(DEBUG)
-		            		printf("\nsend() failed: No data sent."); 
-
-		            	continue;		// go back to the beginning of the infinite loop  
-		            }
-
-
-
-		           	if(DEBUG)
-		           	{
-
-
-		           		printf("\nSuccessfully passed %zu bytes to server on socket #%d. Here is the message I sent: \n\n%s\n", numBytes, serverSock, messageBuffer); 
-		           		printf("\nI am now waiting for the server's response..."); 
-		           	}
-
-	           		/************************************************************************************************************/ 
-					/* (4) Read the server's response message and pass an optionally-modified version of it back to the client 	*/ 
-					/************************************************************************************************************/ 
-					while(1)
-					{
-						memset(&messageBuffer, 0, SIZEOF_MESSAGEBUFFER); 			// zero the buffer and re-use it 
-						numBytes = recv(serverSock, messageBuffer, SIZEOF_MESSAGEBUFFER, 0);
+			        	/****************************************************************/ 
+			        	/* Do I need to send the status & content type separately 		*/ 
+			        	/* from the body? 												*/ 
+			        	/****************************************************************/ 
+			        	numBytes = recv(clntSock, messageBuffer, SIZEOF_MESSAGEBUFFER, 0);
 
 			        	if(numBytes < 0)
-			        	{
-			            	printf("recv() failed\n"); 
-			            	break; 
-			            }
+			            	DieWithSystemMessage("recv() failed\n"); 
 			            else if(numBytes == 0)
 			            {
 			            	if(DEBUG)
@@ -370,14 +183,171 @@ int main()
 			            }
 
 			            if(DEBUG)
+		           			printf("\nReceived %zu bytes from the client. Here is the message I received: \n\n%s\n", numBytes, messageBuffer);
+
+
+
+		           		int tokenizer = 0; 			// used to tokenize the HTTP request headers into OP /path/to/file HTTP/1.x 
+			            int i = 0; 					// used for filling up respective buffers with information from the HTTP request headers
+
+			            /********************************************************/ 
+			        	/* Parse messageBuffer to attain the HTTP operation 	*/ 
+			            /********************************************************/  
+			            while(messageBuffer[tokenizer] != ' ')
 			            {
-			       			printf("\nReceived %zu bytes from the client. Here is the response message I received: \n\n%s\n", numBytes, messageBuffer);
-			       			printf("\nNow I will pass the server's response back the client on socket #%d", clntSock); 
-			       		}
+			            	httpOperation[i] = messageBuffer[tokenizer]; 
+			            	tokenizer++; 
+			            	i++; 
+			            }
 
-			       		numBytes = send(clntSock, messageBuffer, strlen(messageBuffer),0); 
+			            httpOperation[i] = '\0'; 
+			            tokenizer++; 
+			            i=0; 
 
-			       		if(numBytes < 0)
+			            /********************************************************/ 
+			            /* Parse messageBuffer to attain the path to the file 	*/ 
+			            /********************************************************/ 
+			            while(messageBuffer[tokenizer] != ' ')
+			            { 
+			            	pathToFile[i] = messageBuffer[tokenizer]; 
+			            	tokenizer++; 
+			            	i++; 
+			            }
+
+			            pathToFile[i] = '\0'; 
+			            tokenizer++; 
+			            i=0; 
+
+			            /********************************************************/ 
+			            /* Parse messageBuffer to attain the HTTP version 		*/ 
+			            /********************************************************/ 
+			            while(messageBuffer[tokenizer] != '\r')
+			            { 
+			            	httpVersion[i] = messageBuffer[tokenizer]; 
+			            	tokenizer++; 
+			            	i++; 
+			            }
+
+			            httpVersion[i] = '\0'; 
+			            tokenizer++; 
+			            i=0; 
+
+			            /********************************************************/ 
+			            /* Parse messageBuffer to attain host name 				*/ 
+			            /********************************************************/ 
+			            // Skip over the 'Host: ' part 
+			            while(messageBuffer[tokenizer] != ' ')		
+			            {
+			            	tokenizer++;
+			            }
+
+			            tokenizer++; 
+
+			            while(messageBuffer[tokenizer] != '\r')
+		            	{
+		            		host[i] = messageBuffer[tokenizer]; 
+			            	tokenizer++; 
+			            	i++; 
+		            	}
+
+			            host[i] = '\0'; 
+			            tokenizer++; 
+			            i=0; 
+
+			            if(DEBUG)
+			            {
+			            	printf("\n=====     HEADERS      ===== ");
+			            	printf("\nHTTP Request Type: %s", httpOperation); 
+							printf("\nHTTP version: %s", httpVersion); 
+							printf("\nPath to file: %s", pathToFile); 
+							//printf("\nHost: %s", host); 
+							printf("\n"); 
+			            }
+
+
+			            /************************************************/ 
+			           	/* Examine the first character of the request 	*/ 
+			           	/* to determine what HTTP operation it is 		*/ 
+			           	/************************************************/ 
+			           	switch(messageBuffer[0])
+			           	{
+			           		case 'G': 
+			           			if(DEBUG)
+			           				printf("\nReceived HTTP GET request."); 
+			           			break; 
+			           		case 'P': 
+			           			if(DEBUG)
+			           				printf("\nReceived HTTP POST request."); 
+			           			break; 
+			           		case 'H':
+			           			if(DEBUG)
+			           				printf("\nReceived HTTP HEAD request."); 
+			           			break; 
+			           		default: 
+			           			break; 
+			           	}
+
+		           		/********************************************************************************************/ 
+						/* (2) Create a new socket connected to the server specified in the client's HTTP request 	*/ 
+						/********************************************************************************************/ 
+						if((serverSock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0)			
+		    				DieWithSystemMessage("socket() failed"); 
+
+
+						struct sockaddr_in serverAddr; 			// server address structure
+						serverAddr.sin_family = AF_INET; 
+						serverAddr.sin_port = htons(80); 		// We don't know what port to use, try default HTTP port 
+
+
+
+						char ip[SIZEOF_IPADDRESS];				// buffer for storing server's IP address 										
+						char fixedHostname[SIZEOF_HOSTNAME]; 	// buffer for "fixed" version of host name so that getaddrinfo() will work properly 
+
+						memset(&ip, 0, sizeof(ip));
+						memset(&fixedHostname, 0, sizeof(fixedHostname));
+
+						// Build a proper host name so the hostname_to_ip() call below will work properly 
+						build_hostname(host, fixedHostname); 
+
+						// Convert the host name to it's IP address, store in ip 
+						hostname_to_ip(fixedHostname, ip); 
+
+						// Convert the IP address to network byte order and store it in the serverAddr structure 
+						inet_pton(AF_INET, ip, &serverAddr.sin_addr.s_addr); 
+
+
+						if(DEBUG)
+						{
+							printf("\nServer's IP address: %s", ip); 
+							printf("\nAttempting to connect() to server using \n\tSocket #%d\n\tIP address %s \n\tPort #%d", serverSock, ip, htons(clntAddr.sin_port)); 
+						}
+
+						if((connect(serverSock, (struct sockaddr *) &serverAddr, sizeof(serverAddr))) < 0)
+						{
+							if(DEBUG)
+							{
+								printf("\nconnect() failed: failed to connect to server"); 
+								continue; 
+							}
+						}
+
+						if(DEBUG)
+						{
+							printf("\nSuccessfully connected to host %s!", fixedHostname); 
+						}
+
+
+						/************************************************************************************************/ 
+						/* (3) Pass an optionally-modified version of the client's request and send it to the server 	*/   
+						/************************************************************************************************/ 
+
+						if(DEBUG)
+							printf("\nI will now pass the request to the server back using socket #%d", serverSock); 
+
+
+			           	numBytes = send(serverSock, messageBuffer, strlen(messageBuffer), 0); 
+
+			           	if(numBytes < 0)
 			            	DieWithSystemMessage("send() failed\n"); 
 			            else if(numBytes == 0)
 			            {
@@ -391,48 +361,172 @@ int main()
 
 			           	if(DEBUG)
 			           	{
-			           		printf("\nSuccessfully passed %zu bytes to client on socket #%d. Here is the message I sent: \n\n%s\n", numBytes, clntSock, messageBuffer); 
-			           	}
-	           		}
 
-		           	break; 
+
+			           		printf("\nSuccessfully passed %zu bytes to server on socket #%d. Here is the message I sent: \n\n%s\n", numBytes, serverSock, messageBuffer); 
+			           		printf("\nI am now waiting for the server's response..."); 
+			           	}
+
+			           	ssize_t totalBytesRecvd = 0; 
+
+		           		/************************************************************************************************************/ 
+						/* (4) Read the server's response message and pass an optionally-modified version of it back to the client 	*/ 
+						/************************************************************************************************************/ 
+						while(1)
+						{
+
+							memset(&messageBuffer, 0, SIZEOF_MESSAGEBUFFER); 			// zero the buffer and re-use it 
+							numBytes = recv(serverSock, messageBuffer, SIZEOF_MESSAGEBUFFER, 0);
+							totalBytesRecvd += numBytes; 
+
+				        	if(numBytes < 0)
+				        	{
+				            	printf("recv() failed\n"); 
+				            	break; 
+				            }
+				            else if(numBytes == 0)
+				            {
+				            	if(DEBUG)
+				            		printf("\nrecv() failed: No data received."); 
+
+				            	break;		// go back to the beginning of the infinite loop  
+				            }
+
+
+				            // If this is the server's first response message to us, 
+				            // examine the response header's to determine the Content-Length. 
+				            // That is, the number of bytes the server is about to send. 
+				            if(!haveDeterminedContentLength)
+				            {
+								int tokenizer = 0; 
+								
+
+								while(strncmp(&messageBuffer[tokenizer], "Content-Length: ", strlen("Content-Length: ")) != 0 && tokenizer < strlen(messageBuffer))
+								{
+
+									tokenizer++; 
+								}
+
+								while(messageBuffer[tokenizer] != ' ')
+									tokenizer++; 
+
+								tokenizer++; 
+
+								char contentLengthBuff[20]; 
+								int count = 0; 
+
+								printf("\n"); 
+
+								while(messageBuffer[tokenizer] != '\r' && tokenizer < strlen(messageBuffer))
+								{
+									contentLengthBuff[count] = messageBuffer[tokenizer]; 
+									count++; 
+									tokenizer++; 
+								}
+
+								contentLengthBuff[count++] = '\0'; 
+
+								
+
+								
+								if(contentLengthBuff[0] != 0)
+								{
+									contentLength = atoi(contentLengthBuff); 
+									haveDeterminedContentLength = 1; 
+
+									if(DEBUG)
+										printf("\nPer the server's response message, I'm expecting a Content-Length of %d bytes.", contentLength); 
+								}
+							}
+
+							
+
+
+
+				            if(DEBUG)
+				            {
+				       			printf("\nReceived %zu bytes from the server. Here is the response message I received: \n\n%s\n", numBytes, messageBuffer);
+				       			printf("\nNow I will pass the server's response back the client on socket #%d", clntSock); 
+				       			continue; 
+				       		}
+
+				       		numBytes = send(clntSock, messageBuffer, strlen(messageBuffer),0); 
+
+				       		if(numBytes < 0)
+				            	DieWithSystemMessage("send() failed\n"); 
+				            else if(numBytes == 0)
+				            {
+				            	if(DEBUG)
+				            		printf("\nsend() failed: No data sent."); 
+
+				            	continue;		// go back to the beginning of the infinite loop  
+				            }
+
+				            if(totalBytesRecvd >= contentLength && haveDeterminedContentLength)
+							{
+								printf("\nI've received all of the data I was expecting to receive from the server. I was expecting %d bytes and I've received %zu", 
+									contentLength, totalBytesRecvd); 
+								break; 
+							}
+
+
+
+				           	if(DEBUG)
+				           	{
+				           		//printf("\nSuccessfully passed %zu bytes to client on socket #%d. Here is the message I sent: \n\n%s\n", numBytes, clntSock, messageBuffer); 
+
+								printf("\nI have received %zu / %d expected bytes...", totalBytesRecvd, contentLength); 
+							
+				           	}
+		           		}
+
+			           	//break; 
+					} while(1); 
+
+					close(clntSock); 
+
+					if(DEBUG)
+						printf("\nDone communicating with %s. \nSuccessfully closed socket %d.", pathToFile, clntSock); 
 				}
-				while(1); 
+				else if(pid < 0)
+				{
+					if(DEBUG)
+					{
+						printf("\nFailed to fork process to handle communication with %s", pathToFile); 
+					}
+				}
 
 				close(clntSock); 
+				childCount++; 
 
-				if(DEBUG)
-					printf("\nDone communicating with %s. Successfully closed socket %d.", pathToFile, clntSock); 
-			}
-			else if(pid < 0)
-			{
-				if(DEBUG)
+
+				// Kill off some child processes
+				while(childCount)
 				{
-					printf("\nFailed to fork process to handle communication with %s", pathToFile); 
+					pid = waitpid(-1, NULL, WNOHANG); 
+					if(pid == 0)
+						break; 
+					else
+					{
+						childCount--; 
+						if(DEBUG)
+						{
+							printf("\nKilled process %d", pid); 
+						}
+					}
 				}
 			}
 
-			close(clntSock); 
-			childCount++; 
+			haveDeterminedContentLength = 0; 
 
-			while(childCount)
-			{
-				pid = waitpid(-1, NULL, WNOHANG); 
-				if(pid == 0)
-					break; 
-				else
-					childCount--; 
-			}
+			printf("\n=============================================\n"); 
+
 		}
-
-
-		// TODO: Close everything up. 	
 		
 	}
 	while(1); 
 
 	close(sock); 
-
 
 
 	printf("\nPress any key to exit..."); 
