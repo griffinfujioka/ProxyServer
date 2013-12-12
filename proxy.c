@@ -193,7 +193,7 @@ int main()
 
 		           		if(DEBUG)
 		           		{
-		           			printf("\nAfter processing the HTTP request I was able to determine that the server host name is %s", host); 
+		           			printf("\nFrom HTTP request, host name of server: %s", host); 
 		           		}
 
 		           		/********************************************************************************************/ 
@@ -504,6 +504,8 @@ void HandleHttpRequest(char* messageBuffer, char* httpOperation, char* pathToFil
     tokenizer++; 
     i=0; 
 
+    // Now reading line 2 
+
     /********************************************************/ 
     /* Parse messageBuffer to attain host name 				*/ 
     /********************************************************/ 
@@ -524,12 +526,12 @@ void HandleHttpRequest(char* messageBuffer, char* httpOperation, char* pathToFil
 	}
 
     host[i] = '\0'; 
-    strncpy(modifiedMessage, messageBuffer, tokenizer);
-    modifiedMessage[tokenizer] = '\r'; 
+
+    strncpy(modifiedMessage, messageBuffer, tokenizer+1);
+    modifiedMessage[tokenizer+1] = '\r'; 
 
     tokenizer++; 
     modified = tokenizer; 
-    i=0; 
 
 
     if(DEBUG)
@@ -571,6 +573,8 @@ void HandleHttpRequest(char* messageBuffer, char* httpOperation, char* pathToFil
 	// While we're still looking at headers... 
     while(strncmp(&messageBuffer[tokenizer], "\r\n\r\n", strlen("\r\n\r\n") != 0))
     {
+    	printf("\nt: %d, m: %d, messageBuffer[tokenizer] = %c", tokenizer, modified, messageBuffer[tokenizer]); 
+
 
     	/****************************************************************************/ 
     	/* Check for the headers we're supposed to modify and modify accordingly 	*/ 
@@ -583,19 +587,37 @@ void HandleHttpRequest(char* messageBuffer, char* httpOperation, char* pathToFil
 
 	   		if(DEBUG)
 	   		{
-	   			printf("\nFound Proxy-Connection header and removed it. Added %lu to tokenizer counter.", strlen("Proxy-Connection")); 
+	   			printf("\nFound Proxy-Connection header and removed it."); 
 	   		}
 	   		
 
 	   	}
-	   	else if(strncmp(&messageBuffer[tokenizer], "Connection", strlen("Connection")) == 0)
+	   	else if(strncmp(&messageBuffer[tokenizer], "Connection", strlen("Connection")) == 0 && 
+	   		messageBuffer[tokenizer-1] != '-') 		// decipher between Proxy-Connection and Connection
 	   	{
 	   		if(DEBUG)
 	   		{
 	   			printf("\nFound Connection header! Now I must modify it to a 'close' state."); 
 	   		}
-	   	}
 
+	   		int c = tokenizer; 
+	   		while(messageBuffer[c] != ' ')
+	   		{
+	   			modifiedMessage[modified] = messageBuffer[c]; 
+	   			c++;
+	   			modified++; 
+	   		}
+
+	   		sprintf(&modifiedMessage[modified], "close");
+
+	   		modified += strlen("close");  
+	   	}
+	   	else
+	   	{
+	   		modifiedMessage[modified] = messageBuffer[tokenizer]; 
+
+	   		modified++; 
+	   	}
 
 	   	tokenizer++;
 
@@ -603,12 +625,15 @@ void HandleHttpRequest(char* messageBuffer, char* httpOperation, char* pathToFil
 
     }
 
-    messageBuffer = modifiedMessage; 
+    // memset(&messageBuffer, 0, SIZEOF_MESSAGEBUFFER); 
+    // strncpy(messageBuffer, modifiedMessage, strlen(modifiedMessage)); 
 
     if(DEBUG)
     {
     	printf("\nReached the end of the HEADERS portion of the HTTP Request.");
-    	printf("\nThe modified request looks like: \n\n%s\n\n", messageBuffer); 
+    	if(strncmp(&messageBuffer[tokenizer], "\r\n\r\n", strlen("\r\n\r\n") == 0))
+    		printf("\nmessageBuffer[tokenizer] is the Header escape sequence"); 
+    	printf("\nThe modified request looks like: \n\n%s\n\n", modifiedMessage); 
     }
 
     
