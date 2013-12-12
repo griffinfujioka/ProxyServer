@@ -454,84 +454,94 @@ void HandleHttpRequest(char* messageBuffer, char* httpOperation, char* pathToFil
 	memset(&modifiedMessage, 0, sizeof(SIZEOF_MESSAGEBUFFER));
 	if(DEBUG)
 	{
-		printf("\nProcessing HTTP request... \n");
+		printf("\nProcessing HTTP request... it has %lu characters. \n", strlen(messageBuffer));
 	}
 
-	int tokenizer = 0; 			// used to tokenize the HTTP request headers into OP /path/to/file HTTP/1.x 
-    int i = 0; 					// used for filling up respective buffers with information from the HTTP request headers
-    int modified = 0; 
+	int count = 0; 				// used to iterate all the way through messageBuffer
+    int buff = 0; 				// used for filling up respective buffers with information from the HTTP request headers
+    int index = 0; 				// used for iterating through individual lines 
+    int tok = 0; 				// used to tokenize individual lines 
+    int mod = 0; 				// used for populating the modified message 
 
     
 	/********************************************************/ 
 	/* Parse messageBuffer to attain the HTTP operation 	*/ 
     /********************************************************/  
-    while(messageBuffer[tokenizer] != ' ')
+    while(messageBuffer[tok] != ' ')
     {
-    	httpOperation[i] = messageBuffer[tokenizer]; 
-    	tokenizer++; 
-    	i++; 
+    	httpOperation[buff] = messageBuffer[tok]; 
+    	tok++; 
+    	buff++; 
     }
 
-    httpOperation[i] = '\0'; 
-    tokenizer++; 
-    i=0; 
+    httpOperation[buff] = '\0'; 
+    tok++; 
+    buff=0; 
 
     /********************************************************/ 
     /* Parse messageBuffer to attain the path to the file 	*/ 
     /********************************************************/ 
-    while(messageBuffer[tokenizer] != ' ')
+    while(messageBuffer[tok] != ' ')
     { 
-    	pathToFile[i] = messageBuffer[tokenizer]; 
-    	tokenizer++; 
-    	i++; 
+    	pathToFile[buff] = messageBuffer[tok]; 
+    	tok++; 
+    	buff++; 
     }
 
-    pathToFile[i] = '\0'; 
-    tokenizer++; 
-    i=0; 
+    pathToFile[buff] = '\0'; 
+    tok++; 
+    buff=0; 
 
     /********************************************************/ 
     /* Parse messageBuffer to attain the HTTP version 		*/ 
     /********************************************************/ 
-    while(messageBuffer[tokenizer] != '\r')
+    while(messageBuffer[tok] != '\r')
     { 
-    	httpVersion[i] = messageBuffer[tokenizer]; 
-    	tokenizer++; 
-    	i++; 
+    	httpVersion[buff] = messageBuffer[tok]; 
+    	tok++; 
+    	buff++; 
     }
 
-    httpVersion[i] = '\0'; 
-    tokenizer++; 
-    i=0; 
+    httpVersion[buff] = '\0'; 
+    tok++; 
+    count += tok; 
+    buff=0;  
 
-    // Now reading line 2 
+    // Now reading line 2 which tells us the host 
 
     /********************************************************/ 
     /* Parse messageBuffer to attain host name 				*/ 
     /********************************************************/ 
     // Skip over the 'Host: ' part 
-    while(messageBuffer[tokenizer] != ' ')		
+    while(messageBuffer[tok] != ' ')		
     {
-    	tokenizer++;
-
+    	tok++;
     }
 
-    tokenizer++; 
+    tok++; 
 
-    while(messageBuffer[tokenizer] != '\r')
+    while(messageBuffer[tok] != '\r')
 	{
-		host[i] = messageBuffer[tokenizer]; 
-    	tokenizer++; 
-    	i++; 
+		host[buff] = messageBuffer[tok]; 
+    	tok++; 
+    	buff++; 
 	}
 
-    host[i] = '\0'; 
+	strncpy(modifiedMessage, messageBuffer, tok);
+    host[buff] = '\0'; 
+	tok++; 
 
-    strncpy(modifiedMessage, messageBuffer, tokenizer+1);
-    modifiedMessage[tokenizer+1] = '\r'; 
+	printf("a \r\n a"); 
+	modifiedMessage[tok+1] = '\n'; 
+	modifiedMessage[tok+2] = '\r'; 
+	modifiedMessage[tok+3] = 0;
 
-    tokenizer++; 
-    modified = tokenizer; 
+	// Done reading line 2 
+	count += tok; 
+    mod = tok+2; 
+
+    
+    
 
 
     if(DEBUG)
@@ -570,68 +580,87 @@ void HandleHttpRequest(char* messageBuffer, char* httpOperation, char* pathToFil
    			break; 
    	} 
 
-	// While we're still looking at headers... 
-    while(strncmp(&messageBuffer[tokenizer], "\r\n\r\n", strlen("\r\n\r\n") != 0))
+	
+    // While we're still looking at headers... 
+    while(strncmp(&messageBuffer[tok], "\r\n\r\n", strlen("\r\n\r\n") != 0))
     {
-    	printf("\nt: %d, m: %d, messageBuffer[tokenizer] = %c", tokenizer, modified, messageBuffer[tokenizer]); 
+    	int i = tok; 
+    	printf("\n"); 
+    	while(messageBuffer[tok] != '\r')
+    	{
+    		printf("%c", messageBuffer[tok]); 
+    		tok++; 
+    	}
+    }
+    // while(count <= strlen(messageBuffer))
+    // {
+    // 	//printf("\ntok = %d\ncount = %d\nmod = %d", tok, count, mod); 
 
 
-    	/****************************************************************************/ 
-    	/* Check for the headers we're supposed to modify and modify accordingly 	*/ 
-    	/****************************************************************************/ 
-	   	if(strncmp(&messageBuffer[tokenizer], "Proxy-Connection", strlen("Proxy-Connection")) == 0)
-	   	{
-	   		// Skip the modified index up to effectively remove the Proxy-Connection header
-	   		tokenizer += strlen("Proxy-Connection"); 
+    // 	/****************************************************************************/ 
+    // 	/* Check for the headers we're supposed to modify and modify accordingly 	*/ 
+    // 	/****************************************************************************/ 
+	   // 	if(strncmp(&messageBuffer[tok], "Proxy-Connection", strlen("Proxy-Connection")) == 0)
+	   // 	{
+	   // 		// Skip the modified index up to effectively remove the Proxy-Connection header
+	   // 		while(messageBuffer[tok] != '\r')
+	   // 		{
+	   // 			printf("%c", messageBuffer[tok]); 
+	   // 			tok++; 
+	   // 		}
+
+	   // 		tok++;
+	   // 		count += tok; 
+	   		
+	   // 		// Do not add the Proxy-Connection header to the modified message 
 
 
-	   		if(DEBUG)
-	   		{
-	   			printf("\nFound Proxy-Connection header and removed it."); 
-	   		}
+	   // 		if(DEBUG)
+	   // 		{
+	   // 			printf("\nFound Proxy-Connection header and removed it."); 
+	   // 		}
 	   		
 
-	   	}
-	   	else if(strncmp(&messageBuffer[tokenizer], "Connection", strlen("Connection")) == 0 && 
-	   		messageBuffer[tokenizer-1] != '-') 		// decipher between Proxy-Connection and Connection
-	   	{
-	   		if(DEBUG)
-	   		{
-	   			printf("\nFound Connection header! Now I must modify it to a 'close' state."); 
-	   		}
+	   // 	}
+	   // 	// else if(strncmp(&messageBuffer[tok], "Connection", strlen("Connection")) == 0 && 
+	   // 	// 	messageBuffer[tok-1] != '-') 		// decipher between Proxy-Connection and Connection
+	   // 	// {
+	   // 	// 	if(DEBUG)
+	   // 	// 	{
+	   // 	// 		printf("\nFound Connection header! Now I must modify it to a 'close' state."); 
+	   // 	// 	}
 
-	   		int c = tokenizer; 
-	   		while(messageBuffer[c] != ' ')
-	   		{
-	   			modifiedMessage[modified] = messageBuffer[c]; 
-	   			c++;
-	   			modified++; 
-	   		}
+	   // 	// 	// Skip the modified index up to effectively remove the Proxy-Connection header
+	   // 	// 	while(messageBuffer[tok] != '\r')
+	   // 	// 	{
+	   // 	// 		printf("%d: %c", tok,  messageBuffer[tok]); 
+	   // 	// 		tok++; 
+	   // 	// 	}
 
-	   		sprintf(&modifiedMessage[modified], "close");
+	   // 	// 	tok++;
+	   // 	// 	count += tok; 
+	   // 	// }
+	   // 	else
+	   // 	{
+	   // 		modifiedMessage[mod] = messageBuffer[tok]; 
 
-	   		modified += strlen("close");  
-	   	}
-	   	else
-	   	{
-	   		modifiedMessage[modified] = messageBuffer[tokenizer]; 
+	   // 		mod++; 
+	   // 		tok++; 
+	   // 	}
 
-	   		modified++; 
-	   	}
-
-	   	tokenizer++;
-
-
-
-    }
+	   // 	count += tok;
+    // }
 
     // memset(&messageBuffer, 0, SIZEOF_MESSAGEBUFFER); 
     // strncpy(messageBuffer, modifiedMessage, strlen(modifiedMessage)); 
+    modifiedMessage[mod] = '\0'; 
+
+    // TODO: Insert Connection header
 
     if(DEBUG)
     {
     	printf("\nReached the end of the HEADERS portion of the HTTP Request.");
-    	if(strncmp(&messageBuffer[tokenizer], "\r\n\r\n", strlen("\r\n\r\n") == 0))
+    	if(strncmp(&messageBuffer[count], "\r\n\r\n", strlen("\r\n\r\n") == 0))
     		printf("\nmessageBuffer[tokenizer] is the Header escape sequence"); 
     	printf("\nThe modified request looks like: \n\n%s\n\n", modifiedMessage); 
     }
