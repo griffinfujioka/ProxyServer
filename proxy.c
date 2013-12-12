@@ -23,6 +23,8 @@ static int SIZEOF_IPADDRESS = 4;
 
 #define PORT 2500 
 
+void HandleHttpRequest(char* messageBuffer, char* httpOperation, char* pathToFile, char* httpVersion, char* host); 
+
 
 int main()
 {
@@ -172,6 +174,8 @@ int main()
 			        	/****************************************************************/ 
 			        	numBytes = recv(clntSock, messageBuffer, SIZEOF_MESSAGEBUFFER, 0);
 
+
+
 			        	if(numBytes < 0)
 			            	DieWithSystemMessage("recv() failed\n"); 
 			            else if(numBytes == 0)
@@ -185,107 +189,12 @@ int main()
 			            if(DEBUG)
 		           			printf("\nReceived %zu bytes from the client. Here is the message I received: \n\n%s\n", numBytes, messageBuffer);
 
+		           		HandleHttpRequest(messageBuffer, httpOperation, pathToFile, httpVersion, host); 
 
-
-		           		int tokenizer = 0; 			// used to tokenize the HTTP request headers into OP /path/to/file HTTP/1.x 
-			            int i = 0; 					// used for filling up respective buffers with information from the HTTP request headers
-
-			            /********************************************************/ 
-			        	/* Parse messageBuffer to attain the HTTP operation 	*/ 
-			            /********************************************************/  
-			            while(messageBuffer[tokenizer] != ' ')
-			            {
-			            	httpOperation[i] = messageBuffer[tokenizer]; 
-			            	tokenizer++; 
-			            	i++; 
-			            }
-
-			            httpOperation[i] = '\0'; 
-			            tokenizer++; 
-			            i=0; 
-
-			            /********************************************************/ 
-			            /* Parse messageBuffer to attain the path to the file 	*/ 
-			            /********************************************************/ 
-			            while(messageBuffer[tokenizer] != ' ')
-			            { 
-			            	pathToFile[i] = messageBuffer[tokenizer]; 
-			            	tokenizer++; 
-			            	i++; 
-			            }
-
-			            pathToFile[i] = '\0'; 
-			            tokenizer++; 
-			            i=0; 
-
-			            /********************************************************/ 
-			            /* Parse messageBuffer to attain the HTTP version 		*/ 
-			            /********************************************************/ 
-			            while(messageBuffer[tokenizer] != '\r')
-			            { 
-			            	httpVersion[i] = messageBuffer[tokenizer]; 
-			            	tokenizer++; 
-			            	i++; 
-			            }
-
-			            httpVersion[i] = '\0'; 
-			            tokenizer++; 
-			            i=0; 
-
-			            /********************************************************/ 
-			            /* Parse messageBuffer to attain host name 				*/ 
-			            /********************************************************/ 
-			            // Skip over the 'Host: ' part 
-			            while(messageBuffer[tokenizer] != ' ')		
-			            {
-			            	tokenizer++;
-			            }
-
-			            tokenizer++; 
-
-			            while(messageBuffer[tokenizer] != '\r')
-		            	{
-		            		host[i] = messageBuffer[tokenizer]; 
-			            	tokenizer++; 
-			            	i++; 
-		            	}
-
-			            host[i] = '\0'; 
-			            tokenizer++; 
-			            i=0; 
-
-			            if(DEBUG)
-			            {
-			            	printf("\n=====     HEADERS      ===== ");
-			            	printf("\nHTTP Request Type: %s", httpOperation); 
-							printf("\nHTTP version: %s", httpVersion); 
-							printf("\nPath to file: %s", pathToFile); 
-							//printf("\nHost: %s", host); 
-							printf("\n"); 
-			            }
-
-
-			            /************************************************/ 
-			           	/* Examine the first character of the request 	*/ 
-			           	/* to determine what HTTP operation it is 		*/ 
-			           	/************************************************/ 
-			           	switch(messageBuffer[0])
-			           	{
-			           		case 'G': 
-			           			if(DEBUG)
-			           				printf("\nReceived HTTP GET request."); 
-			           			break; 
-			           		case 'P': 
-			           			if(DEBUG)
-			           				printf("\nReceived HTTP POST request."); 
-			           			break; 
-			           		case 'H':
-			           			if(DEBUG)
-			           				printf("\nReceived HTTP HEAD request."); 
-			           			break; 
-			           		default: 
-			           			break; 
-			           	}
+		           		if(DEBUG)
+		           		{
+		           			printf("\nAfter processing the HTTP request I was able to determine that the server host name is %s", host); 
+		           		}
 
 		           		/********************************************************************************************/ 
 						/* (2) Create a new socket connected to the server specified in the client's HTTP request 	*/ 
@@ -319,7 +228,8 @@ int main()
 						if(DEBUG)
 						{
 							printf("\nServer's IP address: %s", ip); 
-							printf("\nAttempting to connect() to server using \n\tSocket #%d\n\tIP address %s \n\tPort #%d", serverSock, ip, htons(clntAddr.sin_port)); 
+							printf("\nAttempting to connect() to server using \n\tSocket #%d\n\tIP address %s \n\tPort #%d", 
+								serverSock, ip, htons(clntAddr.sin_port)); 
 						}
 
 						if((connect(serverSock, (struct sockaddr *) &serverAddr, sizeof(serverAddr))) < 0)
@@ -363,7 +273,8 @@ int main()
 			           	{
 
 
-			           		printf("\nSuccessfully passed %zu bytes to server on socket #%d. Here is the message I sent: \n\n%s\n", numBytes, serverSock, messageBuffer); 
+			           		printf("\nSuccessfully passed %zu bytes to server on socket #%d. Here is the message I sent: \n\n%s\n", 
+			           			numBytes, serverSock, messageBuffer); 
 			           		printf("\nI am now waiting for the server's response..."); 
 			           	}
 
@@ -401,7 +312,8 @@ int main()
 								int tokenizer = 0; 
 								
 
-								while(strncmp(&messageBuffer[tokenizer], "Content-Length: ", strlen("Content-Length: ")) != 0 && tokenizer < strlen(messageBuffer))
+								while(strncmp(&messageBuffer[tokenizer], "Content-Length: ", strlen("Content-Length: ")) != 0 && 
+									tokenizer < strlen(messageBuffer))
 								{
 
 									tokenizer++; 
@@ -445,7 +357,8 @@ int main()
 
 				            if(DEBUG)
 				            {
-				       			printf("\nReceived %zu bytes from the server. Here is the response message I received: \n\n%s\n", numBytes, messageBuffer);
+				       			printf("\nReceived %zu bytes from the server. Here is the response message I received: \n\n%s\n", 
+				       				numBytes, messageBuffer);
 				       			printf("\nNow I will pass the server's response back the client on socket #%d", clntSock); 
 				       			continue; 
 				       		}
@@ -532,4 +445,172 @@ int main()
 	printf("\nPress any key to exit..."); 
 	char ch = getchar(); 
 	return 0; 
+}
+
+void HandleHttpRequest(char* messageBuffer, char* httpOperation, char* pathToFile, char* httpVersion, char* host)
+{
+
+	char modifiedMessage[SIZEOF_MESSAGEBUFFER]; 
+	memset(&modifiedMessage, 0, sizeof(SIZEOF_MESSAGEBUFFER));
+	if(DEBUG)
+	{
+		printf("\nProcessing HTTP request... \n");
+	}
+
+	int tokenizer = 0; 			// used to tokenize the HTTP request headers into OP /path/to/file HTTP/1.x 
+    int i = 0; 					// used for filling up respective buffers with information from the HTTP request headers
+    int modified = 0; 
+
+    
+	/********************************************************/ 
+	/* Parse messageBuffer to attain the HTTP operation 	*/ 
+    /********************************************************/  
+    while(messageBuffer[tokenizer] != ' ')
+    {
+    	httpOperation[i] = messageBuffer[tokenizer]; 
+    	tokenizer++; 
+    	i++; 
+    }
+
+    httpOperation[i] = '\0'; 
+    tokenizer++; 
+    i=0; 
+
+    /********************************************************/ 
+    /* Parse messageBuffer to attain the path to the file 	*/ 
+    /********************************************************/ 
+    while(messageBuffer[tokenizer] != ' ')
+    { 
+    	pathToFile[i] = messageBuffer[tokenizer]; 
+    	tokenizer++; 
+    	i++; 
+    }
+
+    pathToFile[i] = '\0'; 
+    tokenizer++; 
+    i=0; 
+
+    /********************************************************/ 
+    /* Parse messageBuffer to attain the HTTP version 		*/ 
+    /********************************************************/ 
+    while(messageBuffer[tokenizer] != '\r')
+    { 
+    	httpVersion[i] = messageBuffer[tokenizer]; 
+    	tokenizer++; 
+    	i++; 
+    }
+
+    httpVersion[i] = '\0'; 
+    tokenizer++; 
+    i=0; 
+
+    /********************************************************/ 
+    /* Parse messageBuffer to attain host name 				*/ 
+    /********************************************************/ 
+    // Skip over the 'Host: ' part 
+    while(messageBuffer[tokenizer] != ' ')		
+    {
+    	tokenizer++;
+
+    }
+
+    tokenizer++; 
+
+    while(messageBuffer[tokenizer] != '\r')
+	{
+		host[i] = messageBuffer[tokenizer]; 
+    	tokenizer++; 
+    	i++; 
+	}
+
+    host[i] = '\0'; 
+    strncpy(modifiedMessage, messageBuffer, tokenizer);
+    modifiedMessage[tokenizer] = '\r'; 
+
+    tokenizer++; 
+    modified = tokenizer; 
+    i=0; 
+
+
+    if(DEBUG)
+    {
+    	printf("\n============================="); 
+    	printf("\n      HTTP HEADERS           ");
+    	printf("\n============================="); 
+    	printf("\nHTTP Request Type: %s", httpOperation); 
+		printf("\nHTTP version: %s", httpVersion); 
+		printf("\nPath to file: %s", pathToFile); 
+		printf("\nHost: %s", host); 
+		printf("\n"); 
+		printf("\nAfter copying the main headers over to the modified message buffer, modified message is: \n\n%s\n\n", modifiedMessage); 
+    }
+
+
+    /************************************************/ 
+   	/* Examine the first character of the request 	*/ 
+   	/* to determine what HTTP operation it is 		*/ 
+   	/************************************************/ 
+   	switch(messageBuffer[0])
+   	{
+   		case 'G': 
+   			if(DEBUG)
+   				// Process HTTP GET request
+   			break; 
+   		case 'P': 
+   			if(DEBUG)
+   				// Process HTTP POST request
+   			break; 
+   		case 'H':
+   			if(DEBUG)
+   				// Process HTTP HEAD request 
+   			break; 
+   		default: 
+   			break; 
+   	} 
+
+	// While we're still looking at headers... 
+    while(strncmp(&messageBuffer[tokenizer], "\r\n\r\n", strlen("\r\n\r\n") != 0))
+    {
+
+    	/****************************************************************************/ 
+    	/* Check for the headers we're supposed to modify and modify accordingly 	*/ 
+    	/****************************************************************************/ 
+	   	if(strncmp(&messageBuffer[tokenizer], "Proxy-Connection", strlen("Proxy-Connection")) == 0)
+	   	{
+	   		// Skip the modified index up to effectively remove the Proxy-Connection header
+	   		tokenizer += strlen("Proxy-Connection"); 
+
+
+	   		if(DEBUG)
+	   		{
+	   			printf("\nFound Proxy-Connection header and removed it. Added %lu to tokenizer counter.", strlen("Proxy-Connection")); 
+	   		}
+	   		
+
+	   	}
+	   	else if(strncmp(&messageBuffer[tokenizer], "Connection", strlen("Connection")) == 0)
+	   	{
+	   		if(DEBUG)
+	   		{
+	   			printf("\nFound Connection header! Now I must modify it to a 'close' state."); 
+	   		}
+	   	}
+
+
+	   	tokenizer++;
+
+
+
+    }
+
+    messageBuffer = modifiedMessage; 
+
+    if(DEBUG)
+    {
+    	printf("\nReached the end of the HEADERS portion of the HTTP Request.");
+    	printf("\nThe modified request looks like: \n\n%s\n\n", messageBuffer); 
+    }
+
+    
+
 }
