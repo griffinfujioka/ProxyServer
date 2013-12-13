@@ -4,54 +4,20 @@
 #include <netdb.h>
 #include <string.h>
 #include "DieWithMessage.c"
+#include "debug_config.c"		// contains the DEBUG flag
+#include "hostname_helpers.c" 	// helper functions pertaining to host names 
 
 #define PORT 80 
-
-int hostname_to_ip(char* host, char* ip)
-{
-	int sockfd; 
-	struct addrinfo hints, *servInfo, *p; 
-	struct sockaddr_in *h;
-	int rv; 
-
-
-	printf("\nAttempting to resolve host name %s", host); 
-
-	memset(&hints, 0, sizeof(hints)); 
-	hints.ai_family = AF_UNSPEC; 
-	hints.ai_socktype = SOCK_STREAM; 
-
-
-	if((rv = getaddrinfo(host, "http", &hints, &servInfo)) != 0)
-	{
-		printf("\nError"); 
-		return 1; 
-	}
-
-	for(p=servInfo; p != NULL; p = p->ai_next)
-	{
-		h = (struct sockaddr_in *)p->ai_addr;
-		strcpy(ip, inet_ntoa(h->sin_addr)); 
-
-		printf("\nResolved host name %s to IP address %s", host, inet_ntoa(h->sin_addr)); 
-		return 0; 
-	}
-
-	freeaddrinfo(servInfo); 
-
-	return 0; 
-
-}
 
 int main()
 {
 	int clntSock; 
 	struct sockaddr_in clntAddr; 		// address structure for this client 
 
-	char google[100] = "www.google.com\0"; 
+	char host[100] = "www.griffinfujioka.com"; 
 	char ip[100];// = "192.168.0.11\0"; 
 
-	hostname_to_ip(google, ip); 
+	hostname_to_ip(host, ip); 
 
 	clntSock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP); 
 
@@ -70,7 +36,7 @@ int main()
 
     if(rtnVal == 0)
     {
-    	printf("\ninet_pton() failed. Invalid address string"); 
+    	printf("\ninet_pton() failed. Invalid address string: %s", host); 
     	return 0; 
     }
     else if(rtnVal < 0)
