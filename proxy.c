@@ -27,8 +27,6 @@ void HandleHttpRequest(char* messageBuffer, char* httpOperation, char* pathToFil
 
 void CreateModifiedHttpRequest(char* originalMessage, char* modifiedMessage); 
 
-void HandleHttpResponse(char* responseMessage); 
-
 
 int main()
 {
@@ -55,13 +53,6 @@ int main()
 
 	char ip[SIZEOF_IPADDRESS];				// buffer for storing server's IP address 										
 	char fixedHostname[SIZEOF_HOSTNAME]; 	// buffer for "fixed" version of host name so that getaddrinfo() will work properly 
-
-	char* line = "\r\n\r\n"; 
-	if(strcmp(line, "\r\n\r\n") == 0)
-	{
-		printf("\nI've figured out how to detect the blank line.");
-		printf("\nThe blank line is %lu characters.\n", strlen(line)); 
-	}
 
 	printf("================================================="); 
 	printf("\nWelcome to the CptS 455 Proxy Server!"); 
@@ -197,12 +188,6 @@ int main()
 			            if(DEBUG)
 		           			printf("\nReceived %zu bytes from the client. Here is the message I received: \n\n%s\n", numBytes, messageBuffer);
 
-		           		if(messageBuffer[0] == 'C')
-		           		{
-		           			printf("\nReceived Connect message... Homie don't play dat.");
-		           			break;
-		           		}
-
 
 		           		HandleHttpRequest(messageBuffer, httpOperation, pathToFile, httpVersion, host); 
 
@@ -232,7 +217,7 @@ int main()
 		           		if(DEBUG)
 		           		{
 		           			printf("\nHost name of server: %s", fixedHostname); 
-		           			//printf("\nModified HTTP request: \n%s", modifiedMessage); 
+		           			printf("\nModified HTTP request: \n%s", modifiedMessage); 
 		           		}
 
 		           		/********************************************************************************************/ 
@@ -309,33 +294,12 @@ int main()
 		           		/************************************************************************************************************/ 
 						/* (4) Read the server's response message and pass an optionally-modified version of it back to the client 	*/ 
 						/************************************************************************************************************/ 
-						memset(messageBuffer, 0, SIZEOF_MESSAGEBUFFER); 			// zero the buffer and re-use it 
-						numBytes = recv(serverSock, messageBuffer, SIZEOF_MESSAGEBUFFER, 0);
-
-						if(numBytes < 0)
-			        	{
-			            	printf("recv() failed\n"); 
-			            	break; 
-			            }
-			            else if(numBytes == 0)
-			            {
-			            	if(DEBUG)
-			            		printf("\nrecv() failed: No data received."); 
-
-			            	break;		// go back to the beginning of the infinite loop  
-			            }
-
-			            //HandleHttpResponse(messageBuffer); 
-
-						while( totalBytesRecvd < contentLength)
+						while( numBytes >= 0)
 						{
 
-							// I think recv() is going haywire because I don't know how much I'm supposed to be reading in... 
 							memset(messageBuffer, 0, SIZEOF_MESSAGEBUFFER); 			// zero the buffer and re-use it 
-							numBytes = recv(serverSock, messageBuffer, 1024, 0);
+							numBytes = recv(serverSock, messageBuffer, SIZEOF_MESSAGEBUFFER, 0);
 							totalBytesRecvd += numBytes; 
-
-
 
 				        	if(numBytes < 0)
 				        	{
@@ -410,7 +374,7 @@ int main()
 				       			//continue; 
 				       		}
 
-				       		numBytes = send(clntSock, messageBuffer, strlen(messageBuffer),0); 
+				       		numBytes = send(clntSock, messageBuffer, numBytes,0); 
 
 				       		if(numBytes < 0)
 				            	DieWithSystemMessage("send() failed\n"); 
@@ -426,6 +390,11 @@ int main()
 							{
 								printf("\nI've received all of the data I was expecting to receive from the server. I was expecting %d bytes and I've received %zu", 
 									contentLength, totalBytesRecvd); 
+								break; 
+							}
+							else if(totalBytesRecvd > 0 && !haveDeterminedContentLength)
+							{
+								printf("\nDid not detect Content-Length header in server response. What gives!?"); 
 								break; 
 							}
 
@@ -589,7 +558,7 @@ void HandleHttpRequest(char* messageBuffer, char* httpOperation, char* pathToFil
     if(DEBUG)
     {
     	printf("\n============================="); 
-    	printf("\n    HTTP REQUEST HEADERS     ");
+    	printf("\n      HTTP HEADERS           ");
     	printf("\n============================="); 
     	printf("\nHTTP Request Type: %s", httpOperation); 
 		printf("\nHTTP version: %s", httpVersion); 
@@ -642,7 +611,7 @@ void CreateModifiedHttpRequest(char* originalMessage, char* modifiedMessage)
 
 		if(line[0] == '\r')
 		{
-			printf("\nFound the blank line, motherfucker!");
+			printf("\nFound the blank line!");
 
 			break; 
 		}
@@ -671,60 +640,6 @@ void CreateModifiedHttpRequest(char* originalMessage, char* modifiedMessage)
 	//printf("\nModified message: \n\n%s", modifiedMessage); 
 
 }
-
-void HandleHttpResponse(char* responseMessage)
-{
-	if(DEBUG)
-	{
-		printf("\nProcessing HTTP response... it has %lu characters. \n\n", strlen(responseMessage));
-		printf("\n============================="); 
-    	printf("\n    HTTP RESPONSE HEADERS     ");
-    	printf("\n=============================\n\n"); 
-
-	}
-
-	char line[128];
-	int count = 0, i = 0; 
-
-	// Work in progress version... 
-	// while(count <= strlen(responseMessage)+1)
-	// {
-	// 	memset(line, 0, sizeof(line));
-	// 	i = 0;  
-
-	// 	while(responseMessage[count] != '\r')			// end of line is delimited by \r\n
-	// 	{
-	// 		line[i] = responseMessage[count]; 
-	// 		count++; 
-	// 		i++; 
-	// 	}
-
-	// 	line[i] = '\r'; 
-	// 	line[i+1] = '\n'; 
-	// 	//line[i+2] = '\0'; 
-	// 	//printf("\n%s", line);
-
-	// 	count += 2;  		// skip over \n and check out the next line 
-
-	// 	// if(strcmp(line, "\r\n\0") == 0)
-	// 	// {
-	// 	// 	printf("\n============================="); 
-	//  //    	printf("\nEND OF HTTP RESPONSE HEADERS     ");
-	//  //    	printf("\n=============================\n\n"); 
-	//  //    	break; 
-	// 	// }
-	// }
-
-	// Simple print version 
-	while(count <= strlen(responseMessage))
-	{
-		printf("%c", responseMessage[count]); 
-		count++; 
-	}
-
-	printf("\nDone processing HTTP response.");
-}
-
 
 
 

@@ -1,0 +1,21 @@
+COMMENTS: 
+Author: Griffin Fujioka 
+
+There were a number of components in the project which came rather easily as well as some that did not go as well and were left incomplete. Some of the functionality that went came easily included: 
+
+	- Designing the proxy server to accept connections from web clients
+	- Configure web client to use proxy server (by providing IP address of the machine and a port 		port number corresponding to the one chosen by the implementation of the proxy server)
+	- Receive an HTTP request message and parse it 
+	- After obtaining the host from the HTTP request headers, obtain the IP address of the host		and create a new socket connected to the host 
+	- Forward an HTTP request from the client to the host 
+	- Receive a response message from the host
+	- Forward the host's response message to the client 
+
+Although the implementation of the aforementioned functionality seemingly went smooth, there are cases in which the current implementation does not seem to work. 
+
+Some functionality that gave me trouble was: 
+
+	- Modifying an HTTP request message. It took me a long time to get the delimiting of HTTP 
+	  request messages correct and even then after I forwarded what seemed like a valid modified 		HTTP request to the server I received a Invalid Header status code in the server's response 
+	- Reading all of a server's response messages and correctly forwarding them to the client 
+	- Threading: I had a hard time seeing what was going on in my various threads and think there were cases where I'd hit a website and fire off some threads which never died until I killed them using the activity monitor. 
