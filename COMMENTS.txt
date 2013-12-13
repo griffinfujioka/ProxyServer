@@ -4,7 +4,7 @@ Author: Griffin Fujioka
 There were a number of components in the project which came rather easily as well as some that did not go as well and were left incomplete. Some of the functionality that went came easily included: 
 
 	- Designing the proxy server to accept connections from web clients
-	- Configure web client to use proxy server (by providing IP address of the machine and a port 		port number corresponding to the one chosen by the implementation of the proxy server)
+	- Configure web client to use proxy server (by providing IP address of the machine and a port number corresponding to the one chosen by the implementation of the proxy server)
 	- Receive an HTTP request message and parse it 
 	- After obtaining the host from the HTTP request headers, obtain the IP address of the host		and create a new socket connected to the host 
 	- Forward an HTTP request from the client to the host 
@@ -16,6 +16,223 @@ Although the implementation of the aforementioned functionality seemingly went s
 Some functionality that gave me trouble was: 
 
 	- Modifying an HTTP request message. It took me a long time to get the delimiting of HTTP 
-	  request messages correct and even then after I forwarded what seemed like a valid modified 		HTTP request to the server I received a Invalid Header status code in the server's response 
+	  request messages correct and even then after I forwarded what seemed like a valid modified HTTP request to the server I received a Invalid Header status code in the server's response 
 	- Reading all of a server's response messages and correctly forwarding them to the client 
 	- Threading: I had a hard time seeing what was going on in my various threads and think there were cases where I'd hit a website and fire off some threads which never died until I killed them using the activity monitor. 
+
+
+Some URLs which work: 
+	- http://www.eecs.wsu.edu/~hauser/cs455/syllabus.html
+	- http://www.eecs.wsu.edu/~hauser/cs455/resources.html
+	- http://www.eecs.wsu.edu/~hauser/cs455/people.html
+	- http://www.eecs.wsu.edu/~hauser/cs455/turnin.html
+	- http://www.eecs.wsu.edu/~zdang/CPTS450/cs450.htm
+	- http://www.w3.org/Protocols/rfc2616/rfc2616-sec10.html
+	- http://www.w3.org/Protocols/rfc2616/rfc2616.html
+
+
+Sample Output: 
+Griffins-MacBook-Air:Project 3 griffin$ ./proxy
+=================================================
+Welcome to the CptS 455 Proxy Server!
+	Created by: Griffin Fujioka
+	November, 2013
+=================================================
+
+
+Successfully bound socket #3 to port #2500
+Successfully marked socket #3 for listening
+Iteration 1: 
+
+
+Server ready for incoming connections... Incoming connections will be accepted through socket #3
+Successfully accepted connection. Client is using socket 4
+Handling client on socket #4: 
+	IP address: 172.19.18.53
+	Port #: 16856
+
+Received 594 bytes from the client. Here is the message I received: 
+
+GET http://www.eecs.wsu.edu/~hauser/cs455/syllabus.html HTTP/1.1
+Host: www.eecs.wsu.edu
+Proxy-Connection: keep-alive
+Cache-Control: max-age=0
+Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8
+User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_7_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/31.0.1650.57 Safari/537.36
+Accept-Encoding: gzip,deflate,sdch
+Accept-Language: en-US,en;q=0.8
+Cookie: __utma=51605167.152776654.1349199984.1362367428.1371013287.13
+If-None-Match: "dfae08-339a-eba3fec0"
+If-Modified-Since: Fri, 06 Dec 2013 19:47:47 GMT
+
+
+
+Processing HTTP request... it has 594 characters. 
+
+=============================
+      HTTP HEADERS           
+=============================
+HTTP Request Type: GET
+HTTP version: HTTP/1.1
+Path to file: http://www.eecs.wsu.edu/~hauser/cs455/syllabus.html
+Host: www.eecs.wsu.edu
+
+
+Attempting to resolve host name www.eecs.wsu.edu
+Resolved host name www.eecs.wsu.edu to IP address 69.166.54.55
+Successfully forked process 14642 to handle communication with client www.eecs.wsu.edu
+Closed socket #3 in the newly forked process, but it is still alive in it's original process.
+
+Host name of server: www.eecs.wsu.edu
+Modified HTTP request: 
+
+Server's IP address: 69.166.54.55
+Attempting to connect() to server using 
+	Socket #5
+	IP address 69.166.54.55 
+	Port #55361
+Successfully connected to host www.eecs.wsu.edu!
+I will now pass the request to the server www.eecs.wsu.edu using socket #5
+Successfully passed 594 bytes to server on socket #5. Here is the message I sent: 
+
+GET http://www.eecs.wsu.edu/~hauser/cs455/syllabus.html HTTP/1.1
+Host: www.eecs.wsu.edu
+Proxy-Connection: keep-alive
+Cache-Control: max-age=0
+Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8
+User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_7_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/31.0.1650.57 Safari/537.36
+Accept-Encoding: gzip,deflate,sdch
+Accept-Language: en-US,en;q=0.8
+Cookie: __utma=51605167.152776654.1349199984.1362367428.1371013287.13
+If-None-Match: "dfae08-339a-eba3fec0"
+If-Modified-Since: Fri, 06 Dec 2013 19:47:47 GMT
+
+
+
+I am now waiting for the server's response...
+
+Received 148 bytes from the server. Here is the response message I received: 
+
+HTTP/1.1 304 Not Modified
+Date: Fri, 13 Dec 2013 23:27:59 GMT
+Server: Apache/2.0.46 (Red Hat)
+Connection: close
+ETag: "dfae08-339a-eba3fec0"
+
+
+
+Now I will pass the server's response back the client on socket #4
+Did not detect Content-Length header in server response. What gives!?
+recv() failed: No data received.
+Done communicating with http://www.eecs.wsu.edu/~hauser/cs455/syllabus.html. 
+Successfully closed socket 4.
+=============================================
+
+Iteration 2: 
+
+
+
+Server ready for incoming connections... Incoming connections will be accepted through socket #3
+Successfully accepted connection. Client is using socket 4
+Handling client on socket #4: 
+	IP address: 172.19.18.53
+	Port #: 17112
+recv() failed: No data received.
+Done communicating with . 
+Successfully closed socket 4.
+Killed process -1
+=============================================
+
+Iteration 2: 
+
+
+Server ready for incoming connections... Incoming connections will be accepted through socket #3
+Successfully accepted connection. Client is using socket 4
+Handling client on socket #4: 
+	IP address: 172.19.18.53
+	Port #: 17368
+
+Received 589 bytes from the client. Here is the message I received: 
+
+GET http://www.computerhistory.org/internet_history/thumbs/david_clark_t.jpg HTTP/1.1
+Host: www.computerhistory.org
+Proxy-Connection: keep-alive
+Cache-Control: max-age=0
+Accept: image/webp,*/*;q=0.8
+If-None-Match: "1f448c-209b-4b91f76da8600"
+If-Modified-Since: Fri, 17 Feb 2012 02:11:36 GMT
+User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_7_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/31.0.1650.57 Safari/537.36
+Referer: http://www.eecs.wsu.edu/~hauser/cs455/syllabus.html
+Accept-Encoding: gzip,deflate,sdch
+Accept-Language: en-US,en;q=0.8
+Cookie: chm=varnishapp2
+
+
+
+Processing HTTP request... it has 589 characters. 
+
+=============================
+      HTTP HEADERS           
+=============================
+HTTP Request Type: GET
+HTTP version: HTTP/1.1
+Path to file: http://www.computerhistory.org/internet_history/thumbs/david_clark_t.jpg
+Host: www.computerhistory.org
+
+
+Attempting to resolve host name www.computerhistory.org
+Resolved host name www.computerhistory.org to IP address 12.206.216.230
+Successfully forked process 14643 to handle communication with client www.computerhistory.org
+Closed socket #3 in the newly forked process, but it is still alive in it's original process.
+
+Host name of server: www.computerhistory.org
+Modified HTTP request: 
+
+Server's IP address: 12.206.216.230
+Attempting to connect() to server using 
+	Socket #7
+	IP address 12.206.216.230 
+	Port #55362
+Successfully connected to host www.computerhistory.org!
+I will now pass the request to the server www.computerhistory.org using socket #7
+Successfully passed 589 bytes to server on socket #7. Here is the message I sent: 
+
+GET http://www.computerhistory.org/internet_history/thumbs/david_clark_t.jpg HTTP/1.1
+Host: www.computerhistory.org
+Proxy-Connection: keep-alive
+Cache-Control: max-age=0
+Accept: image/webp,*/*;q=0.8
+If-None-Match: "1f448c-209b-4b91f76da8600"
+If-Modified-Since: Fri, 17 Feb 2012 02:11:36 GMT
+User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_7_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/31.0.1650.57 Safari/537.36
+Referer: http://www.eecs.wsu.edu/~hauser/cs455/syllabus.html
+Accept-Encoding: gzip,deflate,sdch
+Accept-Language: en-US,en;q=0.8
+Cookie: chm=varnishapp2
+
+
+
+I am now waiting for the server's response...
+
+Received 222 bytes from the server. Here is the response message I received: 
+
+HTTP/1.1 304 Not Modified
+Date: Fri, 13 Dec 2013 22:53:41 GMT
+Via: 1.1 varnish
+X-Varnish: 2107874246
+Last-Modified: Fri, 17 Feb 2012 02:11:36 GMT
+ETag: "1f448c-209b-4b91f76da8600"
+Connection: close
+X-Cache: MISS
+
+
+
+Now I will pass the server's response back the client on socket #4
+
+recv() failed: No data received.
+Done communicating with . 
+Successfully closed socket 4.
+Killed process -1
+Killed process -1
+
+== End of Sample Output == 

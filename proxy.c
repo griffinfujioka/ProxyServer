@@ -7,7 +7,7 @@
 #include "debug_config.c"		// contains the DEBUG flag
 #include "hostname_helpers.c" 	// helper functions pertaining to host names 
 
-static int SIZEOF_MESSAGEBUFFER = 2048;
+static int SIZEOF_MESSAGEBUFFER = 1024 * 1024;
 
 static int MAXPENDING = 5; 
 
@@ -54,11 +54,13 @@ int main()
 	char ip[SIZEOF_IPADDRESS];				// buffer for storing server's IP address 										
 	char fixedHostname[SIZEOF_HOSTNAME]; 	// buffer for "fixed" version of host name so that getaddrinfo() will work properly 
 
+	int contentTypeIsNotImplemented = 0; 		// Used to re-direct the program if we see a Content-Type we aren't prepared for 
+
 	printf("================================================="); 
 	printf("\nWelcome to the CptS 455 Proxy Server!"); 
 	printf("\n\tCreated by: Griffin Fujioka"); 
 	printf("\n\tNovember, 2013"); 
-	printf("\n================================================="); 
+	printf("\n=================================================\n\n"); 
 
 	/************************************************************/ 
 	/* Create a socket for handling new connection requests 	*/ 
@@ -98,6 +100,7 @@ int main()
 	// while still serving... 
 	do
 	{
+		contentTypeIsNotImplemented = 0; 
 		iterationCounter++; 
 		printf("\nIteration %d: \n\n", iterationCounter); 
 		if(DEBUG)
@@ -313,6 +316,54 @@ int main()
 
 				            	break;		// go back to the beginning of the infinite loop  
 				            }
+
+				     //        int c = 0; 
+				     //        while(c < strlen(messageBuffer))
+				     //        {
+				     //        	if((strncmp(&messageBuffer[c], "Content-Type: ", strlen("Content-Type")) == 0))
+				     //        	{
+				     //        		while(messageBuffer[c] != ' ')
+				     //        		{
+				     //        			c++; 
+				     //        		}
+				     //        		c++; 
+
+				     //        		char contentTypeBuff[20]; 
+				     //        		int count = 0; 
+
+				     //        		printf("\n"); 
+
+									// while(messageBuffer[c] != '\r' && c < strlen(messageBuffer))
+									// {
+									// 	contentTypeBuff[count] = messageBuffer[c]; 
+									// 	count++; 
+									// 	c++; 
+									// }
+
+									// contentTypeBuff[count++] = '\0'; 
+
+									// if(DEBUG)
+									// {
+									// 	printf("\nContent-Type is %s", contentTypeBuff); 
+									// }
+
+									// // if(strncmp(contentTypeBuff, "image", strlen("image")) == 0)
+									// // {
+									// // 	if(DEBUG)
+									// // 	{
+									// // 		printf("\nDetermined that Content-Type is image/*. Daddy don't play like dat, aaand I'm out."); 
+									// // 		contentTypeIsNotImplemented = 1; 
+									// // 		break; 
+									// // 	}
+									// // }
+									// break; 
+					    //         }
+					            
+					    //         c++; 
+				     //        }
+
+				     //        if(contentTypeIsNotImplemented)
+				     //        	break; 
 
 
 				            // If this is the server's first response message to us, 
