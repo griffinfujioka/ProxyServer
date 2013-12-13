@@ -7,7 +7,7 @@
 #include "debug_config.c"		// contains the DEBUG flag
 #include "hostname_helpers.c" 	// helper functions pertaining to host names 
 
-static int SIZEOF_MESSAGEBUFFER = 1024;
+static int SIZEOF_MESSAGEBUFFER = 2048;
 
 static int MAXPENDING = 5; 
 
@@ -26,8 +26,6 @@ static int SIZEOF_IPADDRESS = 4;
 void HandleHttpRequest(char* messageBuffer, char* httpOperation, char* pathToFile, char* httpVersion, char* host); 
 
 void CreateModifiedHttpRequest(char* originalMessage, char* modifiedMessage); 
-
-void PrintHttpRequestByLine(char* message); 
 
 
 int main()
@@ -52,6 +50,9 @@ int main()
 
 	int haveDeterminedContentLength = 0; 
 	int contentLength = 0; 
+
+	char ip[SIZEOF_IPADDRESS];				// buffer for storing server's IP address 										
+	char fixedHostname[SIZEOF_HOSTNAME]; 	// buffer for "fixed" version of host name so that getaddrinfo() will work properly 
 
 	printf("================================================="); 
 	printf("\nWelcome to the CptS 455 Proxy Server!"); 
@@ -125,7 +126,7 @@ int main()
 		if(clntSock < 0)
 		{
 			perror("accept"); 
-			continue;
+			break;
 		}
 		else
 		{
@@ -150,13 +151,7 @@ int main()
 				if(pid >= 0)
 				{
 
-					close(sock);  			// closing fd does not close socket unless last reference, which occurs after we stop serving 
-
-					if(DEBUG)
-					{
-						printf("\nSuccessfully forked process to handle communication with client %s", pathToFile); 
-						printf("\nClosed socket #%d in the newly forked process, but it is still alive in it's original process.", sock); 
-					}
+					//close(sock);  			// closing fd does not close socket unless last reference, which occurs after we stop serving 
 
 					// do-while communicating with the client...
 					do
@@ -193,20 +188,35 @@ int main()
 			            if(DEBUG)
 		           			printf("\nReceived %zu bytes from the client. Here is the message I received: \n\n%s\n", numBytes, messageBuffer);
 
-		           		//PrintHttpRequestByLine(messageBuffer); 
 
 		           		HandleHttpRequest(messageBuffer, httpOperation, pathToFile, httpVersion, host); 
+
+		           		memset(&ip, 0, sizeof(ip));
+						memset(&fixedHostname, 0, sizeof(fixedHostname));
+
+						// Build a proper host name so the hostname_to_ip() call below will work properly 
+						build_hostname(host, fixedHostname); 
+
+						// Convert the host name to it's IP address, store in ip 
+						hostname_to_ip(fixedHostname, ip); 
+
+		           		if(DEBUG)
+						{
+							printf("\nSuccessfully forked process %d to handle communication with client %s", pid, fixedHostname); 
+							printf("\nClosed socket #%d in the newly forked process, but it is still alive in it's original process.", sock); 
+							printf("\n"); 
+						}
 
 		           		char modifiedMessage[SIZEOF_MESSAGEBUFFER]; 
 		           		memset(modifiedMessage, 0, sizeof(modifiedMessage)); 
 
-		           		CreateModifiedHttpRequest(messageBuffer, modifiedMessage); 
+		           		//CreateModifiedHttpRequest(messageBuffer, modifiedMessage); 
 
 
 
 		           		if(DEBUG)
 		           		{
-		           			printf("\nFrom HTTP request, host name of server: %s", host); 
+		           			printf("\nHost name of server: %s", fixedHostname); 
 		           			printf("\nModified HTTP request: \n%s", modifiedMessage); 
 		           		}
 
@@ -221,19 +231,6 @@ int main()
 						serverAddr.sin_family = AF_INET; 
 						serverAddr.sin_port = htons(80); 		// We don't know what port to use, try default HTTP port 
 
-
-
-						char ip[SIZEOF_IPADDRESS];				// buffer for storing server's IP address 										
-						char fixedHostname[SIZEOF_HOSTNAME]; 	// buffer for "fixed" version of host name so that getaddrinfo() will work properly 
-
-						memset(&ip, 0, sizeof(ip));
-						memset(&fixedHostname, 0, sizeof(fixedHostname));
-
-						// Build a proper host name so the hostname_to_ip() call below will work properly 
-						build_hostname(host, fixedHostname); 
-
-						// Convert the host name to it's IP address, store in ip 
-						hostname_to_ip(fixedHostname, ip); 
 
 						// Convert the IP address to network byte order and store it in the serverAddr structure 
 						inet_pton(AF_INET, ip, &serverAddr.sin_addr.s_addr); 
@@ -266,10 +263,10 @@ int main()
 						/************************************************************************************************/ 
 
 						if(DEBUG)
-							printf("\nI will now pass the request to the server back using socket #%d", serverSock); 
+							printf("\nI will now pass the request to the server %s using socket #%d", fixedHostname, serverSock); 
 
 
-			           	numBytes = send(serverSock, modifiedMessage, strlen(modifiedMessage), 0); 
+			           	numBytes = send(serverSock, messageBuffer, strlen(messageBuffer), 0); 
 
 			           	if(numBytes < 0)
 			            	DieWithSystemMessage("send() failed\n"); 
@@ -288,7 +285,7 @@ int main()
 
 
 			           		printf("\nSuccessfully passed %zu bytes to server on socket #%d. Here is the message I sent: \n\n%s\n", 
-			           			numBytes, serverSock, modifiedMessage); 
+			           			numBytes, serverSock, messageBuffer); 
 			           		printf("\nI am now waiting for the server's response..."); 
 			           	}
 
@@ -297,10 +294,10 @@ int main()
 		           		/************************************************************************************************************/ 
 						/* (4) Read the server's response message and pass an optionally-modified version of it back to the client 	*/ 
 						/************************************************************************************************************/ 
-						while(1)
+						while( numBytes >= 0)
 						{
 
-							memset(&messageBuffer, 0, SIZEOF_MESSAGEBUFFER); 			// zero the buffer and re-use it 
+							memset(messageBuffer, 0, SIZEOF_MESSAGEBUFFER); 			// zero the buffer and re-use it 
 							numBytes = recv(serverSock, messageBuffer, SIZEOF_MESSAGEBUFFER, 0);
 							totalBytesRecvd += numBytes; 
 
@@ -407,7 +404,6 @@ int main()
 				           	}
 		           		}
 
-			           	//break; 
 					} while(1); 
 
 					close(clntSock); 
@@ -449,6 +445,8 @@ int main()
 			printf("\n=============================================\n"); 
 
 		}
+
+		//close(sock); 
 		
 	}
 	while(1); 
@@ -461,11 +459,14 @@ int main()
 	return 0; 
 }
 
+
+/****************************************************************************/ 
+/* Upon receiving an HTTP request message into messageBuffer, parse the 	*/ 
+/* HTTP request and populate the httpOperation, pathToFile, httpVersion 	*/ 
+/* and host buffers. 														*/ 
+/****************************************************************************/ 
 void HandleHttpRequest(char* messageBuffer, char* httpOperation, char* pathToFile, char* httpVersion, char* host)
 {
-
-	char modifiedMessage[SIZEOF_MESSAGEBUFFER]; 
-	memset(&modifiedMessage, 0, sizeof(SIZEOF_MESSAGEBUFFER));
 	if(DEBUG)
 	{
 		printf("\nProcessing HTTP request... it has %lu characters. \n", strlen(messageBuffer));
@@ -519,7 +520,6 @@ void HandleHttpRequest(char* messageBuffer, char* httpOperation, char* pathToFil
     httpVersion[buff] = '\0'; 
     tok++; 
 
-    strncpy(modifiedMessage, messageBuffer, tok); 
     count += tok; 
     buff=0;  
 
@@ -542,21 +542,12 @@ void HandleHttpRequest(char* messageBuffer, char* httpOperation, char* pathToFil
     	buff++; 
 	}
 
-	strncpy(modifiedMessage, messageBuffer, tok);
     host[buff] = '\0'; 
 	tok++; 
 
-	
-	modifiedMessage[tok+1] = '\n'; 
-	//modifiedMessage[tok+2] = '\r'; 
-	//modifiedMessage[tok+3] = 0;
 
 	// Done reading line 2 
 	count += tok; 
-    mod = tok+2; 
-
-    
-    
 
 
     if(DEBUG)
@@ -568,156 +559,9 @@ void HandleHttpRequest(char* messageBuffer, char* httpOperation, char* pathToFil
 		printf("\nHTTP version: %s", httpVersion); 
 		printf("\nPath to file: %s", pathToFile); 
 		printf("\nHost: %s", host); 
-		printf("\n"); 
-		//printf("\nAfter copying the main headers over to the modified message buffer, modified message is: \n\n%s\n\n", modifiedMessage); 
+		printf("\n\n"); 
     }
-
-
-    /************************************************/ 
-   	/* Examine the first character of the request 	*/ 
-   	/* to determine what HTTP operation it is 		*/ 
-   	/************************************************/ 
-   	switch(messageBuffer[0])
-   	{
-   		case 'G': 
-   			if(DEBUG)
-   				// Process HTTP GET request
-   			break; 
-   		case 'P': 
-   			if(DEBUG)
-   				// Process HTTP POST request
-   			break; 
-   		case 'H':
-   			if(DEBUG)
-   				// Process HTTP HEAD request 
-   			break; 
-   		default: 
-   			break; 
-   	} 
-
-	
-    // While we're still looking at headers... 
-    // while(strncmp(&messageBuffer[tok], "\r\n\r\n", strlen("\r\n\r\n") != 0))
-    // {
-    // 	int i = tok; 
-    // 	printf("\n"); 
-    // 	while(messageBuffer[tok] != '\r')
-    // 	{
-    // 		printf("%c", messageBuffer[tok]); 
-    // 		tok++; 
-    // 	}
-    // }
-    // while(count <= strlen(messageBuffer))
-    // {
-    // 	//printf("\ntok = %d\ncount = %d\nmod = %d", tok, count, mod); 
-
-
-    // 	/****************************************************************************/ 
-    // 	/* Check for the headers we're supposed to modify and modify accordingly 	*/ 
-    // 	/****************************************************************************/ 
-	   // 	if(strncmp(&messageBuffer[tok], "Proxy-Connection", strlen("Proxy-Connection")) == 0)
-	   // 	{
-	   // 		// Skip the modified index up to effectively remove the Proxy-Connection header
-	   // 		while(messageBuffer[tok] != '\r')
-	   // 		{
-	   // 			printf("%c", messageBuffer[tok]); 
-	   // 			tok++; 
-	   // 		}
-
-	   // 		tok++;
-	   // 		count += tok; 
-	   		
-	   // 		// Do not add the Proxy-Connection header to the modified message 
-
-
-	   // 		if(DEBUG)
-	   // 		{
-	   // 			printf("\nFound Proxy-Connection header and removed it."); 
-	   // 		}
-	   		
-
-	   // 	}
-	   // 	// else if(strncmp(&messageBuffer[tok], "Connection", strlen("Connection")) == 0 && 
-	   // 	// 	messageBuffer[tok-1] != '-') 		// decipher between Proxy-Connection and Connection
-	   // 	// {
-	   // 	// 	if(DEBUG)
-	   // 	// 	{
-	   // 	// 		printf("\nFound Connection header! Now I must modify it to a 'close' state."); 
-	   // 	// 	}
-
-	   // 	// 	// Skip the modified index up to effectively remove the Proxy-Connection header
-	   // 	// 	while(messageBuffer[tok] != '\r')
-	   // 	// 	{
-	   // 	// 		printf("%d: %c", tok,  messageBuffer[tok]); 
-	   // 	// 		tok++; 
-	   // 	// 	}
-
-	   // 	// 	tok++;
-	   // 	// 	count += tok; 
-	   // 	// }
-	   // 	else
-	   // 	{
-	   // 		modifiedMessage[mod] = messageBuffer[tok]; 
-
-	   // 		mod++; 
-	   // 		tok++; 
-	   // 	}
-
-	   // 	count += tok;
-    // }
-
-    // memset(&messageBuffer, 0, SIZEOF_MESSAGEBUFFER); 
-    // strncpy(messageBuffer, modifiedMessage, strlen(modifiedMessage)); 
-    // modifiedMessage[mod] = '\0'; 
-
-    // TODO: Insert Connection header
-
-    if(DEBUG)
-    {
-    	printf("\nReached the end of the HEADERS portion of the HTTP Request.");
-    	if(strncmp(&messageBuffer[count], "\r\n\r\n", strlen("\r\n\r\n") == 0))
-    		printf("\nmessageBuffer[tokenizer] is the Header escape sequence"); 
-    	//printf("\nThe modified request looks like: \n\n%s\n\n", modifiedMessage); 
-    }
-
-    
-
 }
-
-void PrintHttpRequestByLine(char* message)
-{
-	int count = 0, i = 0, lineStart = 0; 
-	char line[128]; 
-
-
-	//while(strncmp(&message[count], "\r\n\r\n", strlen("\r\n\r\n")) != 0)
-	while(count <= strlen(message)+1)
-	{
-		//memset(line, 0, sizeof(line)); 
-		
-		while(message[count] != '\r')
-		{
-			printf("%c", message[count]); 
-
-			count++; 
-		}
-		count++; 
-		count++; 
-		printf("\n%d bytes down...", count); 
-
-		// How do we recognize the end of the header section? 
-		// I know it's /r/n/r/n but that isn't working. 
-
-		//printf("\r"); 
-		//count = i + 1;  
-		// lineStart = count; 
-		// strncpy(line, message + count, i+1); 
-		// printf("%s", line); 
-	}
-
-	printf("\nPrinted %d bytes.", count); 
-}
-
 
 void CreateModifiedHttpRequest(char* originalMessage, char* modifiedMessage)
 {
@@ -731,9 +575,6 @@ void CreateModifiedHttpRequest(char* originalMessage, char* modifiedMessage)
 		if(strncmp(&originalMessage[count], "\r\n\r\n", 4) == 0)
 		{
 			printf("\nFound empty line! That means we've reached the end of the HEADERS!"); 
-			//strncpy(line, &originalMessage[count], 4); 
-			//printf("\nLine: %s", line); 
-			//strcat(modifiedMessage, line); 
 			break; 
 		}
 
@@ -754,7 +595,7 @@ void CreateModifiedHttpRequest(char* originalMessage, char* modifiedMessage)
 		if(strncmp(line, "Proxy-Connection", strlen("Proxy-Connection")) == 0)
 		{
 			// Skip the Proxy-Connection header 
-			printf("\nFound and removed Proxy-Connection header."); 
+			printf("\nFound and removed Proxy-Connection header.\n\n"); 
 			continue; 
 		}
 		else if(strncmp(line, "Connection", strlen("Connection")) == 0)
@@ -763,17 +604,24 @@ void CreateModifiedHttpRequest(char* originalMessage, char* modifiedMessage)
 			continue; 
 		}
 
+		if(line[0] == '\r')
+		{
+			printf("\nFound the blank line, motherfucker!");
+
+			break; 
+		}
+
+
 		strcat(modifiedMessage, line); 
 
-		printf("\nLine: %s", line); 
-		//printf("\nModified message: \n\n%s", modifiedMessage); 
+		printf("Line: %s", line); 
 
 
 	}
 
 	// Insert Connection: close header into modified message 
-	printf("\nmodifiedMessage[count] : %c", modifiedMessage[count]); 
-	
+	//printf("\nmodifiedMessage[count] : %c", modifiedMessage[count]); 
+
 	// memset(line, 0, sizeof(line)); 
 	// strcat(line, "Connection: close\r\n"); 
 	// strcat(modifiedMessage, line); 
@@ -784,7 +632,7 @@ void CreateModifiedHttpRequest(char* originalMessage, char* modifiedMessage)
 	// strcat(modifiedMessage, line); 
 
 
-	printf("\nModified message: \n\n%s", modifiedMessage); 
+	//printf("\nModified message: \n\n%s", modifiedMessage); 
 
 }
 
