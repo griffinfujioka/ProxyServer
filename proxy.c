@@ -25,6 +25,10 @@ static int SIZEOF_IPADDRESS = 4;
 
 void HandleHttpRequest(char* messageBuffer, char* httpOperation, char* pathToFile, char* httpVersion, char* host); 
 
+void CreateModifiedHttpRequest(char* originalMessage, char* modifiedMessage); 
+
+void PrintHttpRequestByLine(char* message); 
+
 
 int main()
 {
@@ -189,11 +193,21 @@ int main()
 			            if(DEBUG)
 		           			printf("\nReceived %zu bytes from the client. Here is the message I received: \n\n%s\n", numBytes, messageBuffer);
 
+		           		//PrintHttpRequestByLine(messageBuffer); 
+
 		           		HandleHttpRequest(messageBuffer, httpOperation, pathToFile, httpVersion, host); 
+
+		           		char modifiedMessage[SIZEOF_MESSAGEBUFFER]; 
+		           		memset(modifiedMessage, 0, sizeof(modifiedMessage)); 
+
+		           		CreateModifiedHttpRequest(messageBuffer, modifiedMessage); 
+
+
 
 		           		if(DEBUG)
 		           		{
 		           			printf("\nFrom HTTP request, host name of server: %s", host); 
+		           			printf("\nModified HTTP request: \n%s", modifiedMessage); 
 		           		}
 
 		           		/********************************************************************************************/ 
@@ -255,7 +269,7 @@ int main()
 							printf("\nI will now pass the request to the server back using socket #%d", serverSock); 
 
 
-			           	numBytes = send(serverSock, messageBuffer, strlen(messageBuffer), 0); 
+			           	numBytes = send(serverSock, modifiedMessage, strlen(modifiedMessage), 0); 
 
 			           	if(numBytes < 0)
 			            	DieWithSystemMessage("send() failed\n"); 
@@ -274,7 +288,7 @@ int main()
 
 
 			           		printf("\nSuccessfully passed %zu bytes to server on socket #%d. Here is the message I sent: \n\n%s\n", 
-			           			numBytes, serverSock, messageBuffer); 
+			           			numBytes, serverSock, modifiedMessage); 
 			           		printf("\nI am now waiting for the server's response..."); 
 			           	}
 
@@ -360,7 +374,7 @@ int main()
 				       			printf("\nReceived %zu bytes from the server. Here is the response message I received: \n\n%s\n", 
 				       				numBytes, messageBuffer);
 				       			printf("\nNow I will pass the server's response back the client on socket #%d", clntSock); 
-				       			continue; 
+				       			//continue; 
 				       		}
 
 				       		numBytes = send(clntSock, messageBuffer, strlen(messageBuffer),0); 
@@ -504,11 +518,12 @@ void HandleHttpRequest(char* messageBuffer, char* httpOperation, char* pathToFil
 
     httpVersion[buff] = '\0'; 
     tok++; 
+
+    strncpy(modifiedMessage, messageBuffer, tok); 
     count += tok; 
     buff=0;  
 
     // Now reading line 2 which tells us the host 
-
     /********************************************************/ 
     /* Parse messageBuffer to attain host name 				*/ 
     /********************************************************/ 
@@ -531,10 +546,10 @@ void HandleHttpRequest(char* messageBuffer, char* httpOperation, char* pathToFil
     host[buff] = '\0'; 
 	tok++; 
 
-	printf("a \r\n a"); 
+	
 	modifiedMessage[tok+1] = '\n'; 
-	modifiedMessage[tok+2] = '\r'; 
-	modifiedMessage[tok+3] = 0;
+	//modifiedMessage[tok+2] = '\r'; 
+	//modifiedMessage[tok+3] = 0;
 
 	// Done reading line 2 
 	count += tok; 
@@ -554,7 +569,7 @@ void HandleHttpRequest(char* messageBuffer, char* httpOperation, char* pathToFil
 		printf("\nPath to file: %s", pathToFile); 
 		printf("\nHost: %s", host); 
 		printf("\n"); 
-		printf("\nAfter copying the main headers over to the modified message buffer, modified message is: \n\n%s\n\n", modifiedMessage); 
+		//printf("\nAfter copying the main headers over to the modified message buffer, modified message is: \n\n%s\n\n", modifiedMessage); 
     }
 
 
@@ -582,16 +597,16 @@ void HandleHttpRequest(char* messageBuffer, char* httpOperation, char* pathToFil
 
 	
     // While we're still looking at headers... 
-    while(strncmp(&messageBuffer[tok], "\r\n\r\n", strlen("\r\n\r\n") != 0))
-    {
-    	int i = tok; 
-    	printf("\n"); 
-    	while(messageBuffer[tok] != '\r')
-    	{
-    		printf("%c", messageBuffer[tok]); 
-    		tok++; 
-    	}
-    }
+    // while(strncmp(&messageBuffer[tok], "\r\n\r\n", strlen("\r\n\r\n") != 0))
+    // {
+    // 	int i = tok; 
+    // 	printf("\n"); 
+    // 	while(messageBuffer[tok] != '\r')
+    // 	{
+    // 		printf("%c", messageBuffer[tok]); 
+    // 		tok++; 
+    // 	}
+    // }
     // while(count <= strlen(messageBuffer))
     // {
     // 	//printf("\ntok = %d\ncount = %d\nmod = %d", tok, count, mod); 
@@ -653,7 +668,7 @@ void HandleHttpRequest(char* messageBuffer, char* httpOperation, char* pathToFil
 
     // memset(&messageBuffer, 0, SIZEOF_MESSAGEBUFFER); 
     // strncpy(messageBuffer, modifiedMessage, strlen(modifiedMessage)); 
-    modifiedMessage[mod] = '\0'; 
+    // modifiedMessage[mod] = '\0'; 
 
     // TODO: Insert Connection header
 
@@ -662,9 +677,117 @@ void HandleHttpRequest(char* messageBuffer, char* httpOperation, char* pathToFil
     	printf("\nReached the end of the HEADERS portion of the HTTP Request.");
     	if(strncmp(&messageBuffer[count], "\r\n\r\n", strlen("\r\n\r\n") == 0))
     		printf("\nmessageBuffer[tokenizer] is the Header escape sequence"); 
-    	printf("\nThe modified request looks like: \n\n%s\n\n", modifiedMessage); 
+    	//printf("\nThe modified request looks like: \n\n%s\n\n", modifiedMessage); 
     }
 
     
 
 }
+
+void PrintHttpRequestByLine(char* message)
+{
+	int count = 0, i = 0, lineStart = 0; 
+	char line[128]; 
+
+
+	//while(strncmp(&message[count], "\r\n\r\n", strlen("\r\n\r\n")) != 0)
+	while(count <= strlen(message)+1)
+	{
+		//memset(line, 0, sizeof(line)); 
+		
+		while(message[count] != '\r')
+		{
+			printf("%c", message[count]); 
+
+			count++; 
+		}
+		count++; 
+		count++; 
+		printf("\n%d bytes down...", count); 
+
+		// How do we recognize the end of the header section? 
+		// I know it's /r/n/r/n but that isn't working. 
+
+		//printf("\r"); 
+		//count = i + 1;  
+		// lineStart = count; 
+		// strncpy(line, message + count, i+1); 
+		// printf("%s", line); 
+	}
+
+	printf("\nPrinted %d bytes.", count); 
+}
+
+
+void CreateModifiedHttpRequest(char* originalMessage, char* modifiedMessage)
+{
+	int count = 0, i = 0; 
+	char line[128]; 
+
+	while(count <= strlen(originalMessage)+1)
+	{
+		memset(line, 0, sizeof(line));
+
+		if(strncmp(&originalMessage[count], "\r\n\r\n", 4) == 0)
+		{
+			printf("\nFound empty line! That means we've reached the end of the HEADERS!"); 
+			//strncpy(line, &originalMessage[count], 4); 
+			//printf("\nLine: %s", line); 
+			//strcat(modifiedMessage, line); 
+			break; 
+		}
+
+		i=0; 
+
+		while(originalMessage[count] != '\r')
+		{
+			line[i] = originalMessage[count]; 
+			count++; 
+			i++; 
+		}
+
+		line[i] = '\r'; 
+		line[i+1] = '\n'; 
+
+		count += 2;  		// skip over \n and check out the next line 
+
+		if(strncmp(line, "Proxy-Connection", strlen("Proxy-Connection")) == 0)
+		{
+			// Skip the Proxy-Connection header 
+			printf("\nFound and removed Proxy-Connection header."); 
+			continue; 
+		}
+		else if(strncmp(line, "Connection", strlen("Connection")) == 0)
+		{
+			printf("\nFound and removed Connection header."); 
+			continue; 
+		}
+
+		strcat(modifiedMessage, line); 
+
+		printf("\nLine: %s", line); 
+		//printf("\nModified message: \n\n%s", modifiedMessage); 
+
+
+	}
+
+	// Insert Connection: close header into modified message 
+	printf("\nmodifiedMessage[count] : %c", modifiedMessage[count]); 
+	
+	// memset(line, 0, sizeof(line)); 
+	// strcat(line, "Connection: close\r\n"); 
+	// strcat(modifiedMessage, line); 
+
+	// // Insert \r\n\r\n to denote the end of the HEADERS section 
+	// memset(line, 0, sizeof(line)); 
+	// strcat(line, "\r\n\r\n"); 
+	// strcat(modifiedMessage, line); 
+
+
+	printf("\nModified message: \n\n%s", modifiedMessage); 
+
+}
+
+
+
+
